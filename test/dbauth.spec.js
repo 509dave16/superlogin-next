@@ -1,5 +1,5 @@
 'use strict';
-var PouchDB = require('pouchdb');
+var PouchDB = require('pouchdb-node');
 var BPromise = require('bluebird');
 var seed = require('pouchdb-seed-design');
 var request = require('superagent');
@@ -8,6 +8,7 @@ var DBAuth = require('../lib/dbauth');
 var Configure = require('../lib/configure');
 var util = require('../lib/util.js');
 var config = require('./test.config.js');
+PouchDB.plugin(require('pouchdb-upsert'));
 
 var dbUrl = util.getDBURL(config.dbServer);
 
