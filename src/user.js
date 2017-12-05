@@ -296,7 +296,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return processTransformations(onCreateActions, newUser, 'local');
       })
       .then(function(finalNewUser) {
-        return userDB.upsert(finalNewUser);
+        return userDB.upsert(finalNewUser._id, () => finalNewUser);
       })
       .then(function(result) {
         newUser._rev = result.rev;
@@ -417,7 +417,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         }
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         if(action === 'signup') {
@@ -514,7 +514,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return processTransformations(onLinkActions, userDoc, provider);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         return BPromise.resolve(user);
@@ -560,7 +560,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         delete user[provider];
         // Remove the unlinked provider from the list of providers
         user.providers.splice(user.providers.indexOf(provider), 1);
-        return userDB.upsert(user);
+        return userDB.upsert(user._id, () => user);
       })
       .then(function() {
         return BPromise.resolve(user);
@@ -620,7 +620,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
       })
       .then(function(finalUser) {
         user = finalUser;
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         newSession.token = newToken.key;
@@ -671,7 +671,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
     }
     return self.logActivity(user._id, 'failed login', 'local', req, user)
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         return BPromise.resolve(!!user.local.lockedUntil);
@@ -709,7 +709,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
           userDoc.activity.pop();
         }
         if(saveDoc) {
-          return userDB.upsert(userDoc)
+          return userDB.upsert(userDoc._id, () => userDoc)
             .then(function() {
               return BPromise.resolve(userDoc);
             });
@@ -737,7 +737,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logoutUserSessions(userDoc, 'expired');
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         delete newSession.password;
@@ -796,7 +796,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logActivity(user._id, 'reset password', 'local', req, user);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         emitter.emit('password-reset', user);
@@ -875,7 +875,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logActivity(user._id, 'changed password', 'local', req, user);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         emitter.emit('password-change', user);
@@ -904,7 +904,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logActivity(user._id, 'forgot password', 'local', req, user);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       })
       .then(function() {
         return mailer.sendEmail('forgotPassword', user.email || user.unverifiedEmail.email,
@@ -930,7 +930,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logActivity(user._id, 'verified email', 'local', req, user);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       });
   };
 
@@ -965,7 +965,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         return self.logActivity(user._id, 'changed email', req.user.provider, req, user);
       })
       .then(function(finalUser) {
-        return userDB.upsert(finalUser);
+        return userDB.upsert(finalUser._id, () => finalUser);
       });
   };
 
@@ -993,7 +993,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         delete dbConfig.memberRoles;
         userDoc.personalDBs[finalDBName] = dbConfig;
         emitter.emit('user-db-added', user_id, dbName);
-        return userDB.upsert(userDoc);
+        return userDB.upsert(userDoc._id, () => userDoc);
       });
   };
 
@@ -1023,7 +1023,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
       .then(function() {
         if(update) {
           emitter.emit('user-db-removed', user_id, dbName);
-          return userDB.upsert(user);
+          return userDB.upsert(user._id, () => user);
         }
         return BPromise.resolve();
       });
@@ -1061,7 +1061,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
       .then(function() {
         emitter.emit('logout', user_id);
         emitter.emit('logout-all', user_id);
-        return userDB.upsert(user);
+        return userDB.upsert(user._id, () => user);
       });
   };
 
@@ -1103,7 +1103,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
         }
         emitter.emit('logout', user._id);
         if(startSessions !== endSessions) {
-          return userDB.upsert(user);
+          return userDB.upsert(user._id, () => user);
         } else {
           return BPromise.resolve(false);
         }
@@ -1124,7 +1124,7 @@ module.exports = function (config, userDB, couchAuthDB, mailer, emitter) {
       })
       .then(function(finalUser) {
         if(finalUser) {
-          return userDB.upsert(finalUser);
+          return userDB.upsert(finalUser._id, () => finalUser);
         } else {
           return BPromise.resolve(false);
         }

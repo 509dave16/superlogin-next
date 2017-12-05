@@ -21,7 +21,7 @@ module.exports = function(couchAuthDB) {
       expires: expires,
       roles: roles
     };
-    return couchAuthDB.upsert(newKey)
+    return couchAuthDB.upsert(newKey._id, () => newKey)
       .then(function () {
         newKey._id = key;
         return BPromise.resolve(newKey);
