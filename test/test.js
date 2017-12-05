@@ -409,10 +409,10 @@ describe('SuperLogin', function() {
   it('should respond unauthorized if a user logs in and no password is set', function() {
     return previous
       .then(function() {
-        return userDB.upsert({
+        return userDB.upsert('nopassword', () => ({
           _id: 'nopassword',
           email: 'nopassword@example.com'
-        });
+        }));
       })
       .then(function() {
         return attemptLogin('nopassword', 'wrongpassword');
