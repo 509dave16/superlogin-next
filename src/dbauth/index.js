@@ -72,7 +72,8 @@ module.exports = function (config, userDB, couchAuthDB) {
     }
     return self.createDB(finalDBName)
       .then(function() {
-        newDB = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + finalDBName);
+				newDB = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + finalDBName);
+				console.log('created new db!', newDB)
         return adapter.initSecurity(newDB, adminRoles, memberRoles);
       })
       .then(function() {
