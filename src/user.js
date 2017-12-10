@@ -8,6 +8,7 @@ var extend = require('extend')
 var Session = require('./session')
 var util = require('./util')
 var DBAuth = require('./dbauth')
+const merge = require('lodash.merge')
 
 // regexp from https://github.com/angular/angular.js/blob/master/src/ng/directive/inupsert.js#L4
 var EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
@@ -305,10 +306,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return processTransformations(onCreateActions, newUser, 'local')
 			})
 			.then(function(finalNewUser) {
-				return userDB.upsert(finalNewUser._id, oldUser => ({
-					...oldUser,
-					...finalNewUser
-				}))
+				return userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
 			})
 			.then(function(result) {
 				newUser._rev = result.rev
@@ -435,10 +433,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				if (action === 'signup') {
@@ -538,10 +533,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return processTransformations(onLinkActions, userDoc, provider)
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				return BPromise.resolve(user)
@@ -657,10 +649,8 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					if (oldDoc.local) {
 						delete oldDoc.local.lockedUntil
 					}
-					return {
-						...oldDoc,
-						...finalUser
-					}
+
+					return merge({}, oldDoc, finalUser)
 				})
 			})
 			.then(function() {
@@ -719,10 +709,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		return self
 			.logActivity(user._id, 'failed login', 'local', req, user)
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				return BPromise.resolve(!!user.local.lockedUntil)
@@ -759,14 +746,9 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				userDoc.activity.pop()
 			}
 			if (saveDoc) {
-				return userDB
-					.upsert(userDoc._id, oldUser => ({
-						...oldUser,
-						...userDoc
-					}))
-					.then(function() {
-						return BPromise.resolve(userDoc)
-					})
+				return userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc)).then(function() {
+					return BPromise.resolve(userDoc)
+				})
 			} else {
 				return BPromise.resolve(userDoc)
 			}
@@ -789,10 +771,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return self.logoutUserSessions(userDoc, 'expired')
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...userDoc
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				delete newSession.password
@@ -860,10 +839,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function(finalUser) {
 				return userDB.upsert(finalUser._id, oldUser => {
 					delete oldUser.forgotPassword
-					return {
-						...oldUser,
-						...userDoc
-					}
+					return merge({}, oldUser, finalUser)
 				})
 			})
 			.then(function() {
@@ -967,10 +943,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return self.logActivity(user._id, 'changed password', 'local', req, user)
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				emitter.emit('password-change', user)
@@ -1000,10 +973,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return self.logActivity(user._id, 'forgot password', 'local', req, user)
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
 				return mailer.sendEmail('forgotPassword', user.email || user.unverifiedEmail.email, {
@@ -1036,10 +1006,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function(finalUser) {
 				return userDB.upsert(finalUser._id, oldUser => {
 					delete oldUser.unverifiedEmail
-					return {
-						...oldUser,
-						...finalUser
-					}
+					return merge({}, oldUser, finalUser)
 				})
 			})
 	}
@@ -1079,10 +1046,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return self.logActivity(user._id, 'changed email', req.user.provider, req, user)
 			})
 			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => ({
-					...oldUser,
-					...finalUser
-				}))
+				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 	}
 
@@ -1118,10 +1082,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				delete dbConfig.memberRoles
 				userDoc.personalDBs[finalDBName] = dbConfig
 				emitter.emit('user-db-added', user_id, dbName)
-				return userDB.upsert(userDoc._id, oldUser => ({
-					...oldUser,
-					...userDoc
-				}))
+				return userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
 			})
 	}
 
@@ -1152,10 +1113,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function() {
 				if (update) {
 					emitter.emit('user-db-removed', user_id, dbName)
-					return userDB.upsert(user._id, oldUser => ({
-						...oldUser,
-						...user
-					}))
+					return userDB.upsert(user._id, oldUser => merge({}, oldUser, user))
 				}
 				return BPromise.resolve()
 			})
@@ -1194,10 +1152,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function() {
 				emitter.emit('logout', user_id)
 				emitter.emit('logout-all', user_id)
-				return userDB.upsert(user._id, oldUser => ({
-					...oldUser,
-					...user
-				}))
+				return userDB.upsert(user._id, oldUser => merge({}, oldUser, user))
 			})
 	}
 
@@ -1244,10 +1199,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						if (oldUser.session) {
 							delete oldUser.session[session_id]
 						}
-						return {
-							...oldUser,
-							...user
-						}
+						return merge({}, oldUser, user)
 					})
 				} else {
 					return BPromise.resolve(false)
@@ -1270,10 +1222,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 			.then(function(finalUser) {
 				if (finalUser) {
-					return userDB.upsert(finalUser._id, oldUser => ({
-						...oldUser,
-						...finalUser
-					}))
+					return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 				} else {
 					return BPromise.resolve(false)
 				}
