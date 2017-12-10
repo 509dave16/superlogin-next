@@ -50,7 +50,9 @@ module.exports = function(config, userDB, couchAuthDB) {
 					config.getItem('userDBs.model._default.permissions') ||
 					[]
 			}
-			var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB)
+			var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB, {
+				skip_setup: true
+			})
 			promises.push(self.authorizeKeys(user_id, db, sessionKeys, permissions, roles))
 		})
 		return BPromise.all(promises)
@@ -178,7 +180,9 @@ module.exports = function(config, userDB, couchAuthDB) {
 		keys = util.toArray(keys)
 		if (userDoc.personalDBs && typeof userDoc.personalDBs === 'object') {
 			Object.keys(userDoc.personalDBs).forEach(function(personalDB) {
-				var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB)
+				var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB, {
+					skip_setup: true
+				})
 				promises.push(deauthorizeKeys(db, keys))
 			})
 			return BPromise.all(promises)
@@ -270,9 +274,18 @@ module.exports = function(config, userDB, couchAuthDB) {
 		)
 	}
 
-	this.removeDB = function(dbName) {
-		var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + dbName)
-		return db.destroy()
+	this.removeDB = async dbName => {
+		try {
+			const db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + dbName, {
+				skip_setup: true
+			})
+			const res = await db.destroy()
+			console.log('remove db success!', dbName)
+			return Promise.resolve()
+		} catch (error) {
+			console.log('remove db failed!', dbName, error)
+			return Promise.reject()
+		}
 	}
 
 	return this

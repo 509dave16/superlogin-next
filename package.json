@@ -63,6 +63,7 @@
 		"body-parser": "^1.9.2",
 		"chai": "^4.1.2",
 		"eslint": "^4.13.0",
+		"fast-async": "^6.3.0",
 		"gulp": "^3.8.6",
 		"gulp-jshint": "^2.0.0",
 		"gulp-mocha": "^4.3.1",

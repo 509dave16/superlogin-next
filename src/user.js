@@ -1086,31 +1086,40 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 	}
 
-	this.removeUserDB = function(user_id, dbName, deletePrivate, deleteShared) {
+	this.removeUserDB = (user_id, dbName, deletePrivate, deleteShared) => {
 		var user
 		var update = false
 		return userDB
 			.get(user_id)
-			.then(function(userDoc) {
+			.then(userDoc => {
 				user = userDoc
 				if (user.personalDBs && typeof user.personalDBs === 'object') {
-					Object.keys(user.personalDBs).forEach(function(db) {
-						if (user.personalDBs[db].name === dbName) {
-							var type = user.personalDBs[db].type
-							delete user.personalDBs[db]
-							update = true
-							if (type === 'private' && deletePrivate) {
-								return dbAuth.removeDB(dbName)
+					return new Promise(async res =>
+						Object.keys(user.personalDBs).forEach(async db => {
+							if (user.personalDBs[db].name === dbName) {
+								var type = user.personalDBs[db].type
+								delete user.personalDBs[db]
+								update = true
+								try {
+									if (type === 'private' && deletePrivate) {
+										await dbAuth.removeDB(dbName)
+										return res()
+									}
+									if (type === 'shared' && deleteShared) {
+										await dbAuth.removeDB(dbName)
+										return res()
+									}
+								} catch (error) {
+									console.log('error removing user db!', dbName, error)
+								}
 							}
-							if (type === 'shared' && deleteShared) {
-								return dbAuth.removeDB(dbName)
-							}
-						}
-					})
+							return res()
+						})
+					)
 				}
 				return BPromise.resolve()
 			})
-			.then(function() {
+			.then(() => {
 				if (update) {
 					emitter.emit('user-db-removed', user_id, dbName)
 					return userDB.upsert(user._id, oldUser => merge({}, oldUser, user))

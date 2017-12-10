@@ -1,13 +1,14 @@
 {
-  "presets": [
-    [
-      "@babel/env",
-      {
-        "exclude": ["transform-regenerator"],
-        "loose": true,
-        "modules": false,
-        "shippedProposals": true
-      }
-    ]
-  ]
+	"presets": [
+		[
+			"@babel/env",
+			{
+				"exclude": ["transform-regenerator"],
+				"loose": true,
+				"modules": false,
+				"shippedProposals": true
+			}
+		]
+	],
+	"plugins": ["module:fast-async"]
 }
