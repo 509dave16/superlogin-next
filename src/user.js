@@ -1295,8 +1295,6 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		try {
 			const userDoc = await userDB.get(user_id)
 			const res = await self.logoutUserSessions(userDoc, 'all')
-			console.log('logged out sessions', res)
-			console.log('remove user', userDoc)
 			user = userDoc
 			if (destroyDBs !== true || !user.personalDBs) {
 				return BPromise.resolve()
