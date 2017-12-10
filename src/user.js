@@ -1245,66 +1245,73 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 	}
 
-	this.logoutUserSessions = function(userDoc, op, currentSession) {
-		// When op is 'other' it will logout all sessions except for the specified 'currentSession'
-		var promises = []
-		var sessions
-		if (op === 'all' || op === 'other') {
-			sessions = util.getSessions(userDoc)
-		} else if (op === 'expired') {
-			sessions = util.getExpiredSessions(userDoc, Date.now())
-		}
-		if (op === 'other' && currentSession) {
-			// Remove the current session from the list of sessions we are going to delete
-			var index = sessions.indexOf(currentSession)
-			if (index > -1) {
-				sessions.splice(index, 1)
+	this.logoutUserSessions = async (userDoc, op, currentSession) => {
+		try {
+			// When op is 'other' it will logout all sessions except for the specified 'currentSession'
+			let sessions
+			if (op === 'all' || op === 'other') {
+				sessions = util.getSessions(userDoc)
+			} else if (op === 'expired') {
+				sessions = util.getExpiredSessions(userDoc, Date.now())
 			}
-		}
-		if (sessions.length) {
-			// Delete the sessions from our session store
-			promises.push(session.deleteTokens(sessions))
-			// Remove the keys from our couchDB auth database
-			promises.push(dbAuth.removeKeys(sessions))
-			// Deauthorize keys from each personal database
-			promises.push(dbAuth.deauthorizeUser(userDoc, sessions))
-			if (op === 'expired' || op === 'other') {
-				sessions.forEach(function(session) {
-					delete userDoc.session[session]
-				})
+			if (op === 'other' && currentSession) {
+				// Remove the current session from the list of sessions we are going to delete
+				var index = sessions.indexOf(currentSession)
+				if (index > -1) {
+					sessions.splice(index, 1)
+				}
 			}
-		}
-		if (op === 'all') {
-			delete userDoc.session
-		}
-		return BPromise.all(promises).then(function() {
+			if (sessions.length) {
+				console.log('deleting sessions', sessions)
+				console.log('deleting session tokens')
+				// Delete the sessions from our session store
+				await session.deleteTokens(sessions)
+				console.log('remove session keys')
+				// Remove the keys from our couchDB auth database
+				await dbAuth.removeKeys(sessions)
+				console.log('deauthorizeUser')
+				// Deauthorize keys from each personal database
+				await dbAuth.deauthorizeUser(userDoc, sessions)
+				console.log('deauthorizeUser done')
+				if (op === 'expired' || op === 'other') {
+					sessions.forEach(function(session) {
+						delete userDoc.session[session]
+					})
+				}
+			}
+			if (op === 'all') {
+				delete userDoc.session
+			}
 			return BPromise.resolve(userDoc)
-		})
+		} catch (error) {
+			console.log('error logging out user sessions!', error)
+			return Promise.resolve(userDoc)
+		}
 	}
 
-	this.remove = function(user_id, destroyDBs) {
+	this.remove = async (user_id, destroyDBs) => {
 		var user
 		var promises = []
-		return userDB
-			.get(user_id)
-			.then(function(userDoc) {
-				return self.logoutUserSessions(userDoc, 'all')
-			})
-			.then(function(userDoc) {
-				user = userDoc
-				if (destroyDBs !== true || !user.personalDBs) {
-					return BPromise.resolve()
+		try {
+			const userDoc = await userDB.get(user_id)
+			const res = await self.logoutUserSessions(userDoc, 'all')
+			console.log('logged out sessions', res)
+			console.log('remove user', userDoc)
+			user = userDoc
+			if (destroyDBs !== true || !user.personalDBs) {
+				return BPromise.resolve()
+			}
+			Object.keys(user.personalDBs).forEach(function(userdb) {
+				if (user.personalDBs[userdb].type === 'private') {
+					promises.push(dbAuth.removeDB(userdb))
 				}
-				Object.keys(user.personalDBs).forEach(function(userdb) {
-					if (user.personalDBs[userdb].type === 'private') {
-						promises.push(dbAuth.removeDB(userdb))
-					}
-				})
-				return BPromise.all(promises)
 			})
-			.then(function() {
-				return userDB.remove(user)
-			})
+			await BPromise.all(promises)
+			return userDB.remove(user)
+		} catch (error) {
+			console.log('error removing user!', error)
+			return Promise.resolve()
+		}
 	}
 
 	this.removeExpiredKeys = dbAuth.removeExpiredKeys.bind(dbAuth)

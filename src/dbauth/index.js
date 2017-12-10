@@ -171,7 +171,7 @@ module.exports = function(config, userDB, couchAuthDB) {
 			})
 	}
 
-	function deauthorizeUser(userDoc, keys) {
+	const deauthorizeUser = async (userDoc, keys) => {
 		var promises = []
 		// If keys is not specified we will deauthorize all of the users sessions
 		if (!keys) {
@@ -179,13 +179,21 @@ module.exports = function(config, userDB, couchAuthDB) {
 		}
 		keys = util.toArray(keys)
 		if (userDoc.personalDBs && typeof userDoc.personalDBs === 'object') {
-			Object.keys(userDoc.personalDBs).forEach(function(personalDB) {
-				var db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB, {
-					skip_setup: true
+			return Promise.all(
+				Object.keys(userDoc.personalDBs).map(async personalDB => {
+					try {
+						const db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB, {
+							skip_setup: true
+						})
+						console.log('deauthorizeKeys!', db, keys)
+						await deauthorizeKeys(db, keys)
+						return Promise.resolve()
+					} catch (error) {
+						console.log('error deauthorizing db!', db)
+						return Promise.resolve()
+					}
 				})
-				promises.push(deauthorizeKeys(db, keys))
-			})
-			return BPromise.all(promises)
+			)
 		} else {
 			return BPromise.resolve(false)
 		}

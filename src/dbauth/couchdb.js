@@ -124,13 +124,14 @@ module.exports = function(couchAuthDB) {
 		})
 	}
 
-	this.deauthorizeKeys = function(db, keys) {
+	this.deauthorizeKeys = async (db, keys) => {
 		var secDoc
 		keys = util.toArray(keys)
-		return db.get('_security').then(function(doc) {
+		try {
+			const doc = await db.get('_security')
 			secDoc = doc
 			if (!secDoc.members || !secDoc.members.names) {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 			var changes = false
 			keys.forEach(function(key) {
@@ -141,11 +142,14 @@ module.exports = function(couchAuthDB) {
 				}
 			})
 			if (changes) {
-				return putSecurityCouch(db, secDoc)
+				return await putSecurityCouch(db, secDoc)
 			} else {
 				return BPromise.resolve(false)
 			}
-		})
+		} catch (error) {
+			console.log('error deauthorizing keys!', error)
+			return Promise.resolve(false)
+		}
 	}
 
 	function putSecurityCouch(db, doc) {
