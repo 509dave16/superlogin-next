@@ -32,7 +32,7 @@ Session.prototype.storeToken = function(token) {
 			.then(function() {
 				delete token.salt
 				delete token.derived_key
-				return BPromise.resolve(token)
+				return Promise.resolve(token)
 			})
 	}
 	return util
@@ -50,7 +50,7 @@ Session.prototype.storeToken = function(token) {
 		.then(function() {
 			delete token.salt
 			delete token.derived_key
-			return BPromise.resolve(token)
+			return Promise.resolve(token)
 		})
 }
 
@@ -71,7 +71,7 @@ Session.prototype.confirmToken = function(key, password) {
 		.getKey(tokenPrefix + ':' + key)
 		.then(function(result) {
 			if (!result) {
-				return BPromise.reject('invalid token')
+				return Promise.reject('invalid token')
 			}
 			token = JSON.parse(result)
 			return util.verifyPassword(token, password)
@@ -80,17 +80,17 @@ Session.prototype.confirmToken = function(key, password) {
 			function() {
 				delete token.salt
 				delete token.derived_key
-				return BPromise.resolve(token)
+				return Promise.resolve(token)
 			},
 			function() {
-				return BPromise.reject('invalid token')
+				return Promise.reject('invalid token')
 			}
 		)
 }
 
 Session.prototype.fetchToken = function(key) {
 	return this._adapter.getKey(tokenPrefix + ':' + key).then(function(result) {
-		return BPromise.resolve(JSON.parse(result))
+		return Promise.resolve(JSON.parse(result))
 	})
 }
 

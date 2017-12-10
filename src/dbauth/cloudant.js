@@ -6,12 +6,12 @@ var util = require('./../util')
 
 // This is not needed with Cloudant
 exports.storeKey = function() {
-	return BPromise.resolve()
+	return Promise.resolve()
 }
 
 // This is not needed with Cloudant
 exports.removeKeys = function() {
-	return BPromise.resolve()
+	return Promise.resolve()
 }
 
 exports.initSecurity = function(db, adminRoles, memberRoles) {
@@ -44,7 +44,7 @@ exports.initSecurity = function(db, adminRoles, memberRoles) {
 		if (changes) {
 			return putSecurityCloudant(db, secDoc)
 		} else {
-			return BPromise.resolve(false)
+			return Promise.resolve(false)
 		}
 	})
 }
@@ -87,7 +87,7 @@ exports.deauthorizeKeys = function(db, keys) {
 	return getSecurityCloudant(db).then(function(secDoc) {
 		var changes = false
 		if (!secDoc.cloudant) {
-			return BPromise.resolve(false)
+			return Promise.resolve(false)
 		}
 		keys.forEach(function(key) {
 			if (secDoc.cloudant[key]) {
@@ -98,7 +98,7 @@ exports.deauthorizeKeys = function(db, keys) {
 		if (changes) {
 			return putSecurityCloudant(db, secDoc)
 		} else {
-			return BPromise.resolve(false)
+			return Promise.resolve(false)
 		}
 	})
 }
@@ -115,9 +115,9 @@ exports.getAPIKey = function(db) {
 	}).then(function(res) {
 		var result = JSON.parse(res.text)
 		if (result.key && result.password && result.ok === true) {
-			return BPromise.resolve(result)
+			return Promise.resolve(result)
 		} else {
-			return BPromise.reject(result)
+			return Promise.reject(result)
 		}
 	})
 }
@@ -130,7 +130,7 @@ var getSecurityCloudant = (exports.getSecurityCloudant = function(db) {
 			//       .set(db.getHeaders())
 			.end(callback)
 	}).then(function(res) {
-		return BPromise.resolve(JSON.parse(res.text))
+		return Promise.resolve(JSON.parse(res.text))
 	})
 })
 
@@ -143,7 +143,7 @@ var putSecurityCloudant = (exports.putSecurityCloudant = function(db, doc) {
 			.send(doc)
 			.end(callback)
 	}).then(function(res) {
-		return BPromise.resolve(JSON.parse(res.text))
+		return Promise.resolve(JSON.parse(res.text))
 	})
 })
 

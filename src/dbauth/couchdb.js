@@ -22,7 +22,7 @@ module.exports = function(couchAuthDB) {
 		}
 		return couchAuthDB.upsert(newKey._id, () => newKey).then(function() {
 			newKey._id = key
-			return BPromise.resolve(newKey)
+			return Promise.resolve(newKey)
 		})
 	}
 
@@ -48,7 +48,7 @@ module.exports = function(couchAuthDB) {
 			if (toDelete.length) {
 				return couchAuthDB.bulkDocs(toDelete)
 			} else {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 		})
 	}
@@ -83,7 +83,7 @@ module.exports = function(couchAuthDB) {
 			if (changes) {
 				return putSecurityCouch(db, secDoc)
 			} else {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 		})
 	}
@@ -119,7 +119,7 @@ module.exports = function(couchAuthDB) {
 			if (changes) {
 				return putSecurityCouch(db, secDoc)
 			} else {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 		})
 	}
@@ -131,7 +131,7 @@ module.exports = function(couchAuthDB) {
 			const doc = await db.get('_security')
 			secDoc = doc
 			if (!secDoc.members || !secDoc.members.names) {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 			var changes = false
 			keys.forEach(function(key) {
@@ -144,11 +144,11 @@ module.exports = function(couchAuthDB) {
 			if (changes) {
 				return await putSecurityCouch(db, secDoc)
 			} else {
-				return BPromise.resolve(false)
+				return Promise.resolve(false)
 			}
 		} catch (error) {
 			console.log('error deauthorizing keys!', error)
-			return BPromise.resolve(false)
+			return Promise.resolve(false)
 		}
 	}
 

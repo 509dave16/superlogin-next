@@ -15,7 +15,7 @@ module.exports = function(router, passport, user, config) {
 		return user
 			.createSession(req.user._id, provider, req)
 			.then(function(mySession) {
-				return BPromise.resolve({
+				return Promise.resolve({
 					error: null,
 					session: mySession,
 					link: null
@@ -50,7 +50,7 @@ module.exports = function(router, passport, user, config) {
 		return user
 			.createSession(req.user._id, provider, req)
 			.then(function(mySession) {
-				return BPromise.resolve(mySession)
+				return Promise.resolve(mySession)
 			})
 			.then(
 				function(session) {
@@ -172,14 +172,14 @@ module.exports = function(router, passport, user, config) {
 	function registerOAuth2(providerName, Strategy) {
 		registerProvider(providerName, function(credentials, passport, authHandler) {
 			passport.use(
-				new Strategy(credentials, function(req, accessToken, refreshToken, profile, done) {
+				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
 					authHandler(
 						req,
 						providerName,
 						{ accessToken: accessToken, refreshToken: refreshToken },
 						profile
-					).asCallback(done)
-				})
+					).then(done)
+				)
 			)
 		})
 	}
@@ -196,14 +196,14 @@ module.exports = function(router, passport, user, config) {
 			// Configure the Passport Strategy
 			passport.use(
 				providerName + '-token',
-				new Strategy(credentials, function(req, accessToken, refreshToken, profile, done) {
+				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
 					authHandler(
 						req,
 						providerName,
 						{ accessToken: accessToken, refreshToken: refreshToken },
 						profile
-					).asCallback(done)
-				})
+					).then(done)
+				)
 			)
 			router.post(
 				'/' + providerName + '/token',

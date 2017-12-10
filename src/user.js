@@ -31,18 +31,18 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 
 	this.validateUsername = function(username) {
 		if (!username) {
-			return BPromise.resolve()
+			return Promise.resolve()
 		}
 		if (!username.match(USER_REGEXP)) {
-			return BPromise.resolve('Invalid username')
+			return Promise.resolve('Invalid username')
 		}
 		return userDB.query('auth/username', { key: username }).then(
 			function(result) {
 				if (result.rows.length === 0) {
 					// Pass!
-					return BPromise.resolve()
+					return Promise.resolve()
 				} else {
-					return BPromise.resolve('already in use')
+					return Promise.resolve('already in use')
 				}
 			},
 			function(err) {
@@ -51,47 +51,45 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		)
 	}
 
-	this.validateEmail = function(email) {
+	this.validateEmail = async email => {
 		if (!email) {
-			return BPromise.resolve()
+			return Promise.resolve()
 		}
 		if (!email.match(EMAIL_REGEXP)) {
-			return BPromise.resolve('invalid email')
+			return Promise.resolve('invalid email')
 		}
-		return userDB.query('auth/email', { key: email }).then(
-			function(result) {
-				if (result.rows.length === 0) {
-					// Pass!
-					return BPromise.resolve()
-				} else {
-					return BPromise.resolve('already in use')
-				}
-			},
-			function(err) {
-				throw new Error(err)
+		try {
+			const result = await userDB.query('auth/email', { key: email })
+			if (result.rows.length === 0) {
+				// Pass!
+				return Promise.resolve()
+			} else {
+				return Promise.resolve('already in use')
 			}
-		)
+		} catch (error) {
+			console.log('error validating email', error)
+			return Promise.reject(error)
+		}
 	}
 
-	this.validateEmailUsername = function(email) {
+	this.validateEmailUsername = async email => {
 		if (!email) {
-			return BPromise.resolve()
+			return Promise.resolve()
 		}
 		if (!email.match(EMAIL_REGEXP)) {
-			return BPromise.resolve('invalid email')
+			return Promise.resolve('invalid email')
 		}
-		return userDB.query('auth/emailUsername', { key: email }).then(
-			function(result) {
-				if (result.rows.length === 0) {
-					return BPromise.resolve()
-				} else {
-					return BPromise.resolve('already in use')
-				}
-			},
-			function(err) {
-				throw new Error(err)
+		try {
+			const result = await userDB.query('auth/emailUsername', { key: email })
+			if (result.rows.length === 0) {
+				return Promise.resolve()
+			} else {
+				return Promise.resolve('already in use')
 			}
-		)
+		} catch (error) {
+			console.log('error validating email/username', error)
+			return Promise.reject(error)
+		}
 	}
 
 	// Validation function for ensuring that two fields match
@@ -213,7 +211,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			if (!promise) {
 				promise = fn.call(null, userDoc, provider)
 			} else {
-				if (!promise.then || typeof BPromise.then !== 'function') {
+				if (!promise.then || typeof Promise.then !== 'function') {
 					throw new Error('onCreate function must return a promise')
 				}
 				promise.then(function(newUserDoc) {
@@ -222,7 +220,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			}
 		})
 		if (!promise) {
-			promise = BPromise.resolve(userDoc)
+			promise = Promise.resolve(userDoc)
 		}
 		return promise
 	}
@@ -238,9 +236,9 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.query('auth/' + query, { key: login, include_docs: true })
 			.then(function(results) {
 				if (results.rows.length > 0) {
-					return BPromise.resolve(results.rows[0].doc)
+					return Promise.resolve(results.rows[0].doc)
 				} else {
-					return BPromise.resolve(null)
+					return Promise.resolve(null)
 				}
 			})
 	}
@@ -278,7 +276,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return util.hashPassword(newUser.password)
 				},
 				function(err) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
@@ -311,7 +309,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function(result) {
 				newUser._rev = result.rev
 				if (!config.getItem('local.sendConfirmEmail')) {
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 				return mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
 					req: req,
@@ -320,7 +318,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 			.then(function() {
 				emitter.emit('signup', newUser, 'local')
-				return BPromise.resolve(newUser)
+				return Promise.resolve(newUser)
 			})
 	}
 
@@ -331,13 +329,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		let baseUsername
 		req = req || {}
 		let ip = req.ip
-		await BPromise.resolve()
 
 		try {
+			console.log('getting results')
 			const results = await userDB.query('auth/' + provider, {
 				key: profile.id,
 				include_docs: true
 			})
+			console.log('results', results)
 
 			if (results.rows.length > 0) {
 				user = results.rows[0].doc
@@ -358,7 +357,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					ip: ip
 				}
 				const emailFail = async () =>
-					BPromise.reject({
+					Promise.reject({
 						error: 'Email already in use',
 						message:
 							'Your email is already in use. Try signing in first and then linking this account.',
@@ -367,7 +366,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				// Now we need to generate a username
 				if (emailUsername) {
 					if (!user.email) {
-						return BPromise.reject({
+						return Promise.reject({
 							error: 'No email provided',
 							message:
 								'An email is required for registration, but ' + provider + " didn't supply one.",
@@ -423,10 +422,10 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			if (action === 'signup') {
 				emitter.emit('signup', user, provider)
 			}
-			return BPromise.resolve(user)
+			return Promise.resolve(user)
 		} catch (error) {
 			console.log('social auth failed!', error)
-			return BPromise.resolve()
+			return Promise.reject(error)
 		}
 	}
 
@@ -434,16 +433,16 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		req = req || {}
 		var user
 		// Load user doc
-		return BPromise.resolve()
+		return Promise.resolve()
 			.then(function() {
 				return userDB.query('auth/' + provider, { key: profile.id })
 			})
 			.then(function(results) {
 				if (results.rows.length === 0) {
-					return BPromise.resolve()
+					return Promise.resolve()
 				} else {
 					if (results.rows[0].id !== user_id) {
-						return BPromise.reject({
+						return Promise.reject({
 							error: 'Conflict',
 							message: 'This ' + provider + ' profile is already in use by another account.',
 							status: 409
@@ -458,7 +457,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				user = theUser
 				// Check for conflicting provider
 				if (user[provider] && user[provider].profile.id !== profile.id) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Conflict',
 						message: 'Your account is already linked with another ' + provider + 'profile.',
 						status: 409
@@ -466,7 +465,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 				// Check email for conflict
 				if (!profile.emails) {
-					return BPromise.resolve({ rows: [] })
+					return Promise.resolve({ rows: [] })
 				}
 				if (emailUsername) {
 					return userDB.query('auth/emailUsername', {
@@ -489,14 +488,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				}
 				if (!passed) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Conflict',
 						message:
 							'The email ' + profile.emails[0].value + ' is already in use by another account.',
 						status: 409
 					})
 				} else {
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 			})
 			.then(function() {
@@ -523,7 +522,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
-				return BPromise.resolve(user)
+				return Promise.resolve(user)
 			})
 	}
 
@@ -534,7 +533,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function(theUser) {
 				user = theUser
 				if (!provider) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Unlink failed',
 						message: 'You must specify a provider to unlink.',
 						status: 400
@@ -542,7 +541,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 				// We can only unlink if there are at least two providers
 				if (!user.providers || !(user.providers instanceof Array) || user.providers.length < 2) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Unlink failed',
 						message: "You can't unlink your only provider!",
 						status: 400
@@ -550,7 +549,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 				// We cannot unlink local
 				if (provider === 'local') {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Unlink failed',
 						message: "You can't unlink local.",
 						status: 400
@@ -558,7 +557,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 				// Check that the provider exists
 				if (!user[provider] || typeof user[provider] !== 'object') {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Unlink failed',
 						message: 'Provider: ' + util.capitalizeFirstLetter(provider) + ' not found.',
 						status: 404
@@ -574,7 +573,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				})
 			})
 			.then(function() {
-				return BPromise.resolve(user)
+				return Promise.resolve(user)
 			})
 	}
 
@@ -603,7 +602,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function() {
 				// authorize the new session across all dbs
 				if (!user.personalDBs) {
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 				return dbAuth.authorizeUserSessions(user_id, user.personalDBs, newToken.key, user.roles)
 			})
@@ -672,7 +671,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					newSession.profile = user.profile
 				}
 				emitter.emit('login', newSession, provider)
-				return BPromise.resolve(newSession, provider)
+				return Promise.resolve(newSession, provider)
 			})
 	}
 
@@ -680,7 +679,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		req = req || {}
 		var maxFailedLogins = config.getItem('security.maxFailedLogins')
 		if (!maxFailedLogins) {
-			return BPromise.resolve()
+			return Promise.resolve()
 		}
 		if (!user.local) {
 			user.local = {}
@@ -699,47 +698,41 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			})
 			.then(function() {
-				return BPromise.resolve(!!user.local.lockedUntil)
+				return Promise.resolve(!!user.local.lockedUntil)
 			})
 	}
 
-	this.logActivity = function(user_id, action, provider, req, userDoc, saveDoc) {
-		var logSize = config.getItem('security.userActivityLogSize')
+	this.logActivity = async (user_id, action, provider, req, userDoc, saveDoc) => {
+		const logSize = config.getItem('security.userActivityLogSize')
 		if (!logSize) {
-			return BPromise.resolve(userDoc)
+			return Promise.resolve(userDoc)
 		}
-		var promise
-		if (userDoc) {
-			promise = BPromise.resolve(userDoc)
-		} else {
+		let promise
+		let theUser = userDoc
+		if (!theUser) {
 			if (saveDoc !== false) {
 				saveDoc = true
 			}
-			promise = userDB.get(user_id)
+			theUser = await userDB.get(user_id)
 		}
-		return BPromise.then(function(theUser) {
-			userDoc = theUser
-			if (!userDoc.activity || !(userDoc.activity instanceof Array)) {
-				userDoc.activity = []
-			}
-			var entry = {
-				timestamp: new Date().toISOString(),
-				action: action,
-				provider: provider,
-				ip: req.ip
-			}
-			userDoc.activity.unshift(entry)
-			while (userDoc.activity.length > logSize) {
-				userDoc.activity.pop()
-			}
-			if (saveDoc) {
-				return userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc)).then(function() {
-					return BPromise.resolve(userDoc)
-				})
-			} else {
-				return BPromise.resolve(userDoc)
-			}
-		})
+		userDoc = theUser
+		if (!userDoc.activity || !(userDoc.activity instanceof Array)) {
+			userDoc.activity = []
+		}
+		const entry = {
+			timestamp: new Date().toISOString(),
+			action: action,
+			provider: provider,
+			ip: req.ip
+		}
+		userDoc.activity.unshift(entry)
+		while (userDoc.activity.length > logSize) {
+			userDoc.activity.pop()
+		}
+		if (saveDoc) {
+			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
+		}
+		return Promise.resolve(userDoc)
 	}
 
 	this.refreshSession = function(key) {
@@ -749,7 +742,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(function(oldToken) {
 				newSession = oldToken
 				newSession.expires = Date.now() + sessionLife * 1000
-				return BPromise.all([userDB.get(newSession._id), session.storeToken(newSession)])
+				return Promise.all([userDB.get(newSession._id), session.storeToken(newSession)])
 			})
 			.then(function(results) {
 				var userDoc = results[0]
@@ -769,7 +762,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				delete newSession.salt
 				delete newSession.derived_key
 				emitter.emit('refresh', newSession)
-				return BPromise.resolve(newSession)
+				return Promise.resolve(newSession)
 			})
 	}
 
@@ -789,7 +782,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				},
 				function(err) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
@@ -798,11 +791,11 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			)
 			.then(function(results) {
 				if (!results.rows.length) {
-					return BPromise.reject({ status: 400, error: 'Invalid token' })
+					return Promise.reject({ status: 400, error: 'Invalid token' })
 				}
 				user = results.rows[0].doc
 				if (user.forgotPassword.expires < Date.now()) {
-					return BPromise.reject({ status: 400, error: 'Token expired' })
+					return Promise.reject({ status: 400, error: 'Token expired' })
 				}
 				return util.hashPassword(form.password)
 			})
@@ -831,7 +824,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 			.then(function() {
 				emitter.emit('password-reset', user)
-				return BPromise.resolve(user)
+				return Promise.resolve(user)
 			})
 	}
 
@@ -848,7 +841,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return userDB.get(user_id)
 				},
 				function(err) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
@@ -863,7 +856,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				if (user.local && user.local.salt && user.local.derived_key) {
 					// Password is required
 					if (!form.currentPassword) {
-						return BPromise.reject({
+						return Promise.reject({
 							error: 'Password change failed',
 							message: 'You must supply your current password in order to change it.',
 							status: 400
@@ -871,7 +864,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					}
 					return util.verifyPassword(user.local, form.currentPassword)
 				} else {
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 			})
 			.then(
@@ -879,7 +872,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return self.changePassword(user._id, form.newPassword, user, req)
 				},
 				function(err) {
-					return BPromise.reject(
+					return Promise.reject(
 						err || {
 							error: 'Password change failed',
 							message: 'The current password you supplied is incorrect.',
@@ -892,7 +885,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				if (req.user && req.user.key) {
 					return self.logoutOthers(req.user.key)
 				} else {
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 			})
 	}
@@ -901,7 +894,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		req = req || {}
 		var promise, user
 		if (userDoc) {
-			promise = BPromise.resolve(userDoc)
+			promise = Promise.resolve(userDoc)
 		} else {
 			promise = userDB.get(user_id)
 		}
@@ -912,7 +905,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return util.hashPassword(newPassword)
 				},
 				function(err) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'User not found',
 						status: 404
 					})
@@ -944,7 +937,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.query('auth/email', { key: email, include_docs: true })
 			.then(function(result) {
 				if (!result.rows.length) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'User not found',
 						status: 404
 					})
@@ -971,7 +964,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 			.then(function() {
 				emitter.emit('forgot-password', user)
-				return BPromise.resolve(user.forgotPassword)
+				return Promise.resolve(user.forgotPassword)
 			})
 	}
 
@@ -982,7 +975,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.query('auth/verifyEmail', { key: token, include_docs: true })
 			.then(function(result) {
 				if (!result.rows.length) {
-					return BPromise.reject({ error: 'Invalid token', status: 400 })
+					return Promise.reject({ error: 'Invalid token', status: 400 })
 				}
 				user = result.rows[0].doc
 				user.email = user.unverifiedEmail.email
@@ -1008,7 +1001,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.validateEmail(newEmail)
 			.then(function(err) {
 				if (err) {
-					return BPromise.reject(err)
+					return Promise.reject(err)
 				}
 				return userDB.get(user_id)
 			})
@@ -1025,7 +1018,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				} else {
 					user.email = newEmail
-					return BPromise.resolve()
+					return Promise.resolve()
 				}
 			})
 			.then(function() {
@@ -1082,7 +1075,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(userDoc => {
 				user = userDoc
 				if (user.personalDBs && typeof user.personalDBs === 'object') {
-					return new BPromise(async res =>
+					return new Promise(async res =>
 						Object.keys(user.personalDBs).forEach(async db => {
 							if (user.personalDBs[db].name === dbName) {
 								dbID = db
@@ -1106,7 +1099,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						})
 					)
 				}
-				return BPromise.resolve()
+				return Promise.resolve()
 			})
 			.then(() => {
 				if (update) {
@@ -1118,7 +1111,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						merge({}, oldUser, user)
 					})
 				}
-				return BPromise.resolve()
+				return Promise.resolve()
 			})
 	}
 
@@ -1128,7 +1121,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			promise = userDB.get(user_id)
 		} else {
 			if (!session_id) {
-				return BPromise.reject({
+				return Promise.reject({
 					error: 'unauthorized',
 					message: 'Either user_id or session_id must be specified',
 					status: 401
@@ -1138,12 +1131,12 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				.query('auth/session', { key: session_id, include_docs: true })
 				.then(function(results) {
 					if (!results.rows.length) {
-						return BPromise.reject({
+						return Promise.reject({
 							error: 'unauthorized',
 							status: 401
 						})
 					}
-					return BPromise.resolve(results.rows[0].doc)
+					return Promise.resolve(results.rows[0].doc)
 				})
 		}
 		return promise
@@ -1167,7 +1160,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.query('auth/session', { key: session_id, include_docs: true })
 			.then(function(results) {
 				if (!results.rows.length) {
-					return BPromise.reject({
+					return Promise.reject({
 						error: 'unauthorized',
 						status: 401
 					})
@@ -1185,7 +1178,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				if (user) {
 					promises.push(dbAuth.deauthorizeUser(user, session_id))
 				}
-				return BPromise.all(promises)
+				return Promise.all(promises)
 			})
 			.then(function() {
 				// Clean out expired sessions
@@ -1205,7 +1198,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						return merge({}, oldUser, user)
 					})
 				} else {
-					return BPromise.resolve(false)
+					return Promise.resolve(false)
 				}
 			})
 	}
@@ -1221,13 +1214,13 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						return self.logoutUserSessions(user, 'other', session_id)
 					}
 				}
-				return BPromise.resolve()
+				return Promise.resolve()
 			})
 			.then(function(finalUser) {
 				if (finalUser) {
 					return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 				} else {
-					return BPromise.resolve(false)
+					return Promise.resolve(false)
 				}
 			})
 	}
@@ -1269,10 +1262,10 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			if (op === 'all') {
 				delete userDoc.session
 			}
-			return BPromise.resolve(userDoc)
+			return Promise.resolve(userDoc)
 		} catch (error) {
 			console.log('error logging out user sessions!', error)
-			return BPromise.resolve(userDoc)
+			return Promise.resolve(userDoc)
 		}
 	}
 
@@ -1284,18 +1277,18 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			const res = await self.logoutUserSessions(userDoc, 'all')
 			user = userDoc
 			if (destroyDBs !== true || !user.personalDBs) {
-				return BPromise.resolve()
+				return Promise.resolve()
 			}
 			Object.keys(user.personalDBs).forEach(function(userdb) {
 				if (user.personalDBs[userdb].type === 'private') {
 					promises.push(dbAuth.removeDB(userdb))
 				}
 			})
-			await BPromise.all(promises)
+			await Promise.all(promises)
 			return userDB.remove(user)
 		} catch (error) {
 			console.log('error removing user!', error)
-			return BPromise.resolve()
+			return Promise.resolve()
 		}
 	}
 
@@ -1319,14 +1312,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			while (token[0] === '_' || token[0] === '-') {
 				token = util.URLSafeUUID()
 			}
-			getKey = BPromise.resolve({
+			getKey = Promise.resolve({
 				key: token,
 				password: util.URLSafeUUID()
 			})
 		}
 		return getKey.then(function(key) {
 			var now = Date.now()
-			return BPromise.resolve({
+			return Promise.resolve({
 				_id: username,
 				key: key.key,
 				password: key.password,
@@ -1346,13 +1339,13 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.allDocs({ startkey: base, endkey: base + '\uffff', include_docs: false })
 			.then(function(results) {
 				if (results.rows.length === 0) {
-					return BPromise.resolve(base)
+					return Promise.resolve(base)
 				}
 				for (var i = 0; i < results.rows.length; i++) {
 					entries.push(results.rows[i].id)
 				}
 				if (entries.indexOf(base) === -1) {
-					return BPromise.resolve(base)
+					return Promise.resolve(base)
 				}
 				var num = 0
 				while (!finalName) {
@@ -1361,59 +1354,53 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 						finalName = base + num
 					}
 				}
-				return BPromise.resolve(finalName)
+				return Promise.resolve(finalName)
 			})
 	}
 
-	function addUserDBs(newUser) {
+	const addUserDBs = async newUser => {
 		// Add personal DBs
 		if (!config.getItem('userDBs.defaultDBs')) {
-			return BPromise.resolve(newUser)
+			return Promise.resolve(newUser)
 		}
 		var promises = []
 		newUser.personalDBs = {}
 
-		var processUserDBs = function(dbList, type) {
-			dbList.forEach(function(userDBName) {
-				var dbConfig = dbAuth.getDBConfig(userDBName)
-				promises.push(
-					dbAuth
-						.addUserDB(
-							newUser,
-							userDBName,
-							dbConfig.designDocs,
-							type,
-							dbConfig.permissions,
-							dbConfig.adminRoles,
-							dbConfig.memberRoles
-						)
-						.then(function(finalDBName) {
-							delete dbConfig.permissions
-							delete dbConfig.adminRoles
-							delete dbConfig.memberRoles
-							delete dbConfig.designDocs
-							dbConfig.type = type
-							newUser.personalDBs[finalDBName] = dbConfig
-						})
-				)
-			})
-		}
+		const processUserDBs = async (dbList, type) =>
+			Promise.all(
+				dbList.map(async userDBName => {
+					const dbConfig = dbAuth.getDBConfig(userDBName)
+					const finalDBName = await dbAuth.addUserDB(
+						newUser,
+						userDBName,
+						dbConfig.designDocs,
+						type,
+						dbConfig.permissions,
+						dbConfig.adminRoles,
+						dbConfig.memberRoles
+					)
+					delete dbConfig.permissions
+					delete dbConfig.adminRoles
+					delete dbConfig.memberRoles
+					delete dbConfig.designDocs
+					dbConfig.type = type
+					newUser.personalDBs[finalDBName] = dbConfig
+				})
+			)
 
 		// Just in case defaultDBs is not specified
-		var defaultPrivateDBs = config.getItem('userDBs.defaultDBs.private')
+		const defaultPrivateDBs = config.getItem('userDBs.defaultDBs.private')
 		if (!Array.isArray(defaultPrivateDBs)) {
 			defaultPrivateDBs = []
 		}
-		processUserDBs(defaultPrivateDBs, 'private')
-		var defaultSharedDBs = config.getItem('userDBs.defaultDBs.shared')
+		await processUserDBs(defaultPrivateDBs, 'private')
+		const defaultSharedDBs = config.getItem('userDBs.defaultDBs.shared')
 		if (!Array.isArray(defaultSharedDBs)) {
 			defaultSharedDBs = []
 		}
-		processUserDBs(defaultSharedDBs, 'shared')
+		await processUserDBs(defaultSharedDBs, 'shared')
 
-		return BPromise.all(promises).then(function() {
-			return BPromise.resolve(newUser)
-		})
+		return Promise.resolve(newUser)
 	}
 
 	return this

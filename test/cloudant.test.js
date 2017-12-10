@@ -12,7 +12,7 @@ describe('Cloudant', function() {
 
   var apiKey;
 
-  previous = BPromise.resolve();
+  previous = Promise.resolve();
 
   before(function() {
     return previous.then(function() {
@@ -25,7 +25,7 @@ describe('Cloudant', function() {
     this.timeout(5000);
     return previous.finally(function() {
       return testDB.destroy();
-      // return BPromise.resolve();
+      // return Promise.resolve();
     });
   });
 

@@ -1,7 +1,7 @@
 var BPromise = require('bluebird')
-var fs = BPromise.promisifyAll(require('fs-extra'))
+var fs = BPromise.PromisifyAll(require('fs-extra'))
 var path = require('path')
-// BPromise.config({ warnings: false });
+// Promise.config({ warnings: false });
 function FileAdapter(config) {
 	var sessionsRoot = config.getItem('session.file.sessionsRoot')
 	this._sessionFolder = path.join(process.env.PWD, sessionsRoot)
@@ -49,14 +49,14 @@ FileAdapter.prototype.deleteKeys = function(keys) {
 		return fs.removeAsync(self._getFilepath(key))
 	})
 
-	return BPromise.all(deleteQueue).then(function(done) {
+	return Promise.all(deleteQueue).then(function(done) {
 		// this._removeExpired();
 		return done.length
 	})
 }
 
 FileAdapter.prototype.quit = function() {
-	return BPromise.resolve()
+	return Promise.resolve()
 }
 
 FileAdapter.prototype._removeExpired = function() {
