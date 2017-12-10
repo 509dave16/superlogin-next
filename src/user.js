@@ -213,7 +213,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			if (!promise) {
 				promise = fn.call(null, userDoc, provider)
 			} else {
-				if (!promise.then || typeof promise.then !== 'function') {
+				if (!promise.then || typeof BPromise.then !== 'function') {
 					throw new Error('onCreate function must return a promise')
 				}
 				promise.then(function(newUserDoc) {
@@ -324,123 +324,110 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 	}
 
-	this.socialAuth = function(provider, auth, profile, req) {
-		var user
-		var newAccount = false
-		var action
-		var baseUsername
+	this.socialAuth = async (provider, auth, profile, req) => {
+		let user
+		let newAccount = false
+		let action
+		let baseUsername
 		req = req || {}
-		var ip = req.ip
-		// It is important that we return a Bluebird promise so oauth.js can call .nodeify()
-		return BPromise.resolve()
-			.then(function() {
-				return userDB.query('auth/' + provider, {
-					key: profile.id,
-					include_docs: true
-				})
+		let ip = req.ip
+		await BPromise.resolve()
+
+		try {
+			const results = await userDB.query('auth/' + provider, {
+				key: profile.id,
+				include_docs: true
 			})
-			.then(function(results) {
-				if (results.rows.length > 0) {
-					user = results.rows[0].doc
-					return BPromise.resolve()
-				} else {
-					newAccount = true
-					user = {}
-					user[provider] = {}
-					if (profile.emails) {
-						user.email = profile.emails[0].value
-					}
-					user.providers = [provider]
-					user.type = 'user'
-					user.roles = config.getItem('security.defaultRoles')
-					user.signUp = {
-						provider: provider,
-						timestamp: new Date().toISOString(),
-						ip: ip
-					}
-					var emailFail = function() {
+
+			if (results.rows.length > 0) {
+				user = results.rows[0].doc
+			} else {
+				let finalUsername
+				newAccount = true
+				user = {}
+				user[provider] = {}
+				if (profile.emails) {
+					user.email = profile.emails[0].value
+				}
+				user.providers = [provider]
+				user.type = 'user'
+				user.roles = config.getItem('security.defaultRoles')
+				user.signUp = {
+					provider: provider,
+					timestamp: new Date().toISOString(),
+					ip: ip
+				}
+				const emailFail = async () =>
+					BPromise.reject({
+						error: 'Email already in use',
+						message:
+							'Your email is already in use. Try signing in first and then linking this account.',
+						status: 409
+					})
+				// Now we need to generate a username
+				if (emailUsername) {
+					if (!user.email) {
 						return BPromise.reject({
-							error: 'Email already in use',
+							error: 'No email provided',
 							message:
-								'Your email is already in use. Try signing in first and then linking this account.',
-							status: 409
+								'An email is required for registration, but ' + provider + " didn't supply one.",
+							status: 400
 						})
 					}
-					// Now we need to generate a username
-					if (emailUsername) {
-						if (!user.email) {
-							return BPromise.reject({
-								error: 'No email provided',
-								message:
-									'An email is required for registration, but ' + provider + " didn't supply one.",
-								status: 400
-							})
-						}
-						return self.validateEmailUsername(user.email).then(function(err) {
-							if (err) {
-								return emailFail()
-							}
-							return BPromise.resolve(user.email.toLowerCase())
-						})
+					const err = await self.validateEmailUsername(user.email)
+					if (err) {
+						return emailFail()
+					}
+					finalUsername = user.email.toLowerCase()
+				} else {
+					if (profile.username) {
+						baseUsername = profile.username.toLowerCase()
 					} else {
-						if (profile.username) {
-							baseUsername = profile.username.toLowerCase()
+						// If a username isn't specified we'll take it from the email
+						if (user.email) {
+							const parseEmail = user.email.split('@')
+							baseUsername = parseEmail[0].toLowerCase()
+						} else if (profile.displayName) {
+							baseUsername = profile.displayName.replace(/\s/g, '').toLowerCase()
 						} else {
-							// If a username isn't specified we'll take it from the email
-							if (user.email) {
-								var parseEmail = user.email.split('@')
-								baseUsername = parseEmail[0].toLowerCase()
-							} else if (profile.displayName) {
-								baseUsername = profile.displayName.replace(/\s/g, '').toLowerCase()
-							} else {
-								baseUsername = profile.id.toLowerCase()
-							}
+							baseUsername = profile.id.toLowerCase()
 						}
-						return self.validateEmail(user.email).then(function(err) {
-							if (err) {
-								return emailFail()
-							}
-							return generateUsername(baseUsername)
-						})
 					}
+					const err = await self.validateEmail(user.email)
+					if (err) {
+						return emailFail()
+					}
+					finalUsername = generateUsername(baseUsername)
 				}
-			})
-			.then(function(finalUsername) {
-				if (finalUsername) {
-					user._id = finalUsername
-				}
-				user[provider].auth = auth
-				user[provider].profile = profile
-				if (!user.name) {
-					user.name = profile.displayName
-				}
-				delete user[provider].profile._raw
-				if (newAccount) {
-					return addUserDBs(user)
-				} else {
-					return BPromise.resolve(user)
-				}
-			})
-			.then(function(userDoc) {
-				action = newAccount ? 'signup' : 'login'
-				return self.logActivity(userDoc._id, action, provider, req, userDoc)
-			})
-			.then(function(userDoc) {
-				if (newAccount) {
-					return processTransformations(onCreateActions, userDoc, provider)
-				} else {
-					return processTransformations(onLinkActions, userDoc, provider)
-				}
-			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
-				if (action === 'signup') {
-					emitter.emit('signup', user, provider)
-				}
-				return BPromise.resolve(user)
-			})
+			}
+			if (finalUsername) {
+				user._id = finalUsername
+			}
+			user[provider].auth = auth
+			user[provider].profile = profile
+			if (!user.name) {
+				user.name = profile.displayName
+			}
+			delete user[provider].profile._raw
+			if (newAccount) {
+				await addUserDBs(user)
+			}
+			action = newAccount ? 'signup' : 'login'
+			await self.logActivity(user._id, action, provider, req, user)
+			const finalUser = await processTransformations(
+				newAccount ? onCreateActions : onLinkActions,
+				userDoc,
+				provider
+			)
+			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+			if (action === 'signup') {
+				emitter.emit('signup', user, provider)
+			}
+			return BPromise.resolve(user)
+		} catch (error) {
+			console.log('social auth failed!', error)
+			return BPromise.resolve()
+		}
 	}
 
 	this.linkSocial = function(user_id, provider, auth, profile, req) {
@@ -730,7 +717,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			}
 			promise = userDB.get(user_id)
 		}
-		return promise.then(function(theUser) {
+		return BPromise.then(function(theUser) {
 			userDoc = theUser
 			if (!userDoc.activity || !(userDoc.activity instanceof Array)) {
 				userDoc.activity = []
@@ -1285,7 +1272,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			return BPromise.resolve(userDoc)
 		} catch (error) {
 			console.log('error logging out user sessions!', error)
-			return Promise.resolve(userDoc)
+			return BPromise.resolve(userDoc)
 		}
 	}
 
@@ -1308,7 +1295,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			return userDB.remove(user)
 		} catch (error) {
 			console.log('error removing user!', error)
-			return Promise.resolve()
+			return BPromise.resolve()
 		}
 	}
 

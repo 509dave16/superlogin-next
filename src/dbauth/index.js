@@ -179,17 +179,17 @@ module.exports = function(config, userDB, couchAuthDB) {
 		}
 		keys = util.toArray(keys)
 		if (userDoc.personalDBs && typeof userDoc.personalDBs === 'object') {
-			return Promise.all(
+			return BPromise.all(
 				Object.keys(userDoc.personalDBs).map(async personalDB => {
 					try {
 						const db = new PouchDB(util.getDBURL(config.getItem('dbServer')) + '/' + personalDB, {
 							skip_setup: true
 						})
 						await deauthorizeKeys(db, keys)
-						return Promise.resolve()
+						return BPromise.resolve()
 					} catch (error) {
 						console.log('error deauthorizing db!', error)
-						return Promise.resolve()
+						return BPromise.resolve()
 					}
 				})
 			)
@@ -287,10 +287,10 @@ module.exports = function(config, userDB, couchAuthDB) {
 				skip_setup: true
 			})
 			const res = await db.destroy()
-			return Promise.resolve()
+			return BPromise.resolve()
 		} catch (error) {
 			console.log('remove db failed!', dbName, error)
-			return Promise.reject()
+			return BPromise.reject()
 		}
 	}
 

@@ -131,7 +131,7 @@ module.exports = function(couchAuthDB) {
 			const doc = await db.get('_security')
 			secDoc = doc
 			if (!secDoc.members || !secDoc.members.names) {
-				return Promise.resolve(false)
+				return BPromise.resolve(false)
 			}
 			var changes = false
 			keys.forEach(function(key) {
@@ -148,7 +148,7 @@ module.exports = function(couchAuthDB) {
 			}
 		} catch (error) {
 			console.log('error deauthorizing keys!', error)
-			return Promise.resolve(false)
+			return BPromise.resolve(false)
 		}
 	}
 
