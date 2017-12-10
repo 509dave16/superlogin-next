@@ -1089,6 +1089,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 	this.removeUserDB = (user_id, dbName, deletePrivate, deleteShared) => {
 		var user
 		var update = false
+		let dbID
 		return userDB
 			.get(user_id)
 			.then(userDoc => {
@@ -1097,20 +1098,21 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return new BPromise(async res =>
 						Object.keys(user.personalDBs).forEach(async db => {
 							if (user.personalDBs[db].name === dbName) {
+								dbID = db
 								var type = user.personalDBs[db].type
 								delete user.personalDBs[db]
 								update = true
 								try {
 									if (type === 'private' && deletePrivate) {
-										await dbAuth.removeDB(dbName)
+										await dbAuth.removeDB(db)
 										return res()
 									}
 									if (type === 'shared' && deleteShared) {
-										await dbAuth.removeDB(dbName)
+										await dbAuth.removeDB(db)
 										return res()
 									}
 								} catch (error) {
-									console.log('error removing user db!', dbName, error)
+									console.log('error removing user db!', db, dbName, error)
 								}
 							}
 							return res()
@@ -1123,8 +1125,8 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				if (update) {
 					emitter.emit('user-db-removed', user_id, dbName)
 					return userDB.upsert(user._id, oldUser => {
-						if (oldUser.personalDBs[db]) {
-							delete oldUser.personalDBs[db]
+						if (oldUser.personalDBs[dbID]) {
+							delete oldUser.personalDBs[dbID]
 						}
 						merge({}, oldUser, user)
 					})
