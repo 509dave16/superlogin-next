@@ -1094,7 +1094,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(userDoc => {
 				user = userDoc
 				if (user.personalDBs && typeof user.personalDBs === 'object') {
-					return new Promise(async res =>
+					return new BPromise(async res =>
 						Object.keys(user.personalDBs).forEach(async db => {
 							if (user.personalDBs[db].name === dbName) {
 								var type = user.personalDBs[db].type
@@ -1122,7 +1122,12 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(() => {
 				if (update) {
 					emitter.emit('user-db-removed', user_id, dbName)
-					return userDB.upsert(user._id, oldUser => merge({}, oldUser, user))
+					return userDB.upsert(user._id, oldUser => {
+						if (oldUser.personalDBs[db]) {
+							delete oldUser.personalDBs[db]
+						}
+						merge({}, oldUser, user)
+					})
 				}
 				return BPromise.resolve()
 			})
