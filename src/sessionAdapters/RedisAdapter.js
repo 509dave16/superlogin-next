@@ -1,5 +1,5 @@
 var BPromise = require('bluebird')
-var redis = BPromise.PromisifyAll(require('redis'))
+var redis = BPromise.promisifyAll(require('redis'))
 
 function RedisAdapter(config) {
 	var redisClient
