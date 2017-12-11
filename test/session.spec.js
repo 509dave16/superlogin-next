@@ -1,9 +1,9 @@
 'use strict'
-var BPromise = require('bluebird')
+var Promise = require('bluebird')
 var expect = require('chai').expect
 var Session = require('../lib/session')
 var Configure = require('../lib/configure')
-var rimraf = BPromise.Promisify(require('rimraf'))
+var rimraf = Promise.Promisify(require('rimraf'))
 
 var testToken = {
 	_id: 'colinskow',

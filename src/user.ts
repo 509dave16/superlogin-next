@@ -1,4 +1,3 @@
-import BPromise from 'bluebird'
 import { EventEmitter } from 'events'
 import merge from 'lodash.merge'
 import Model from 'sofa-model'
@@ -558,8 +557,6 @@ const user = (
 		let finalUsername
 		req = req || {}
 		const { ip } = req
-
-		await BPromise.resolve()
 
 		try {
 			console.log('getting results for provider', provider)

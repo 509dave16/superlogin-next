@@ -6,7 +6,7 @@ var sinon = require('sinon');
 var expect= chai.expect;
 chai.use(require('sinon-chai'));
 
-var BPromise = require('bluebird');
+var Promise = require('bluebird');
 global.Promise = Promise;
 var PouchDB = require('pouchdb');
 var seed = require('pouchdb-seed-design');

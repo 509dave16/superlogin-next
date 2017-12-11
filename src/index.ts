@@ -1,3 +1,5 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
 import events from 'events'
 import express from 'express'
 import PouchDB from 'pouchdb-node'
@@ -84,7 +86,7 @@ const init = async (
 	// Load the routes
 	loadRoutes(config, router, passport, user)
 
-	return {
+	const superlogin = {
 		config,
 		router,
 		mailer,
@@ -120,13 +122,17 @@ const init = async (
 		removeExpiredKeys: user.removeExpiredKeys,
 		sendEmail: mailer.sendEmail,
 		quitRedis: user.quitRedis,
-		on: emitter.on,
 		// authentication middleware
 		requireAuth: middleware.requireAuth,
 		requireRole: middleware.requireRole,
 		requireAnyRole: middleware.requireAnyRole,
 		requireAllRoles: middleware.requireAllRoles
 	}
+	// tslint:disable-next-line
+	for (const key in emitter) {
+		superlogin[key] = emitter[key]
+	}
+	return superlogin
 }
 
 export default init

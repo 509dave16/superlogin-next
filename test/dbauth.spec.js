@@ -1,6 +1,6 @@
 'use strict'
 var PouchDB = require('pouchdb-node')
-var BPromise = require('bluebird')
+var Promise = require('bluebird')
 var seed = require('pouchdb-seed-design')
 var request = require('superagent')
 var expect = require('chai').expect
@@ -303,7 +303,7 @@ describe('DBAuth', function() {
 
 function checkDBExists(dbname) {
 	var finalUrl = dbUrl + '/' + dbname
-	return BPromise.fromNode(function(callback) {
+	return Promise.fromNode(function(callback) {
 		request.get(finalUrl).end(callback)
 	}).then(
 		function(res) {

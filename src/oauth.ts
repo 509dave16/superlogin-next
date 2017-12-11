@@ -152,7 +152,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			return res.status(200).send(html)
 		} catch (error) {
 			console.log('initSession failed', error)
-			return next()
+			return next(error)
 		}
 	}
 
@@ -210,7 +210,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		req: Request,
 		res: Response
 	) => {
-		console.log('oauthErrorHandler 1', err)
+		console.log('oauthErrorHandler 1', res)
 		let template
 		if (config.getItem('testMode.oauthTest')) {
 			template = fs.readFileSync(
@@ -303,9 +303,12 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 	// A shortcut to register OAuth2 providers that follow the exact accessToken, refreshToken pattern.
 	const registerOAuth2 = (providerName: string, Strategy: StrategyType) => {
 		registerProvider(providerName, (credentials, providerPassport, providerAuthHandler) => {
+			console.log('yay provider auth handler', providerAuthHandler)
 			providerPassport.use(
 				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
-					providerAuthHandler(req, providerName, { accessToken, refreshToken }, profile).then(done)
+					providerAuthHandler(req, providerName, { accessToken, refreshToken }, profile).asCallback(
+						done
+					)
 				)
 			)
 		})
@@ -324,7 +327,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			passport.use(
 				`${providerName}-token`,
 				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
-					authHandler(req, providerName, { accessToken, refreshToken }, profile).then(done)
+					authHandler(req, providerName, { accessToken, refreshToken }, profile).asCallback(done)
 				)
 			)
 			router.post(

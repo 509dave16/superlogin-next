@@ -11,6 +11,7 @@
 		]
 	],
 	"plugins": [
+		"module:fast-async",
 		[
 			"module-resolver",
 			{
@@ -21,7 +22,6 @@
 					"sessionAdapters": "./sessionAdapters"
 				}
 			}
-		],
-		"module:fast-async"
+		]
 	]
 }

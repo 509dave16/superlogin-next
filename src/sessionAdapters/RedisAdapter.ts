@@ -1,7 +1,6 @@
-import BPromise from 'bluebird'
 import redisBase, { RedisClient } from 'redis'
 
-const redis = BPromise.promisifyAll(redisBase)
+const redis = Promise.promisifyAll(redisBase)
 
 interface IPromRedis extends RedisClient {
 	authAsync(pwd: string): Promise<void>

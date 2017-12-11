@@ -1,4 +1,3 @@
-import BPromise from 'bluebird'
 import ejs, { Data } from 'ejs'
 import fs from 'fs'
 import nodemailer, { Transporter } from 'nodemailer'
@@ -52,7 +51,7 @@ const mailer = (config: IConfigure): IMailer => {
 				console.log(mailOptions)
 			}
 			// send the message
-			const sendEmail = BPromise.promisify(transporter.sendMail, { context: transporter })
+			const sendEmail = Promise.promisify(transporter.sendMail, { context: transporter })
 			return sendEmail(mailOptions)
 		}
 	}

@@ -1,4 +1,3 @@
-import BPromise from 'bluebird'
 import pwd from 'couch-pwd'
 import crypto from 'crypto'
 import { Request } from 'express'
@@ -31,7 +30,7 @@ const verifyPassword = async (
 	password: string
 ) => {
 	// tslint:disable-next-line:no-any
-	const getHash: any = BPromise.promisify(pwd.hash, { context: pwd })
+	const getHash: any = Promise.promisify(pwd.hash, { context: pwd })
 	const { iterations, salt, derived_key } = hashObj
 	if (iterations) {
 		pwd.iterations(iterations)

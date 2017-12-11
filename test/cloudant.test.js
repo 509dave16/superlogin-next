@@ -1,6 +1,6 @@
 'use strict';
 var PouchDB = require('pouchdb');
-var BPromise = require('bluebird');
+var Promise = require('bluebird');
 var expect = require('chai').expect;
 var cloudant = require('../lib/dbauth/cloudant');
 

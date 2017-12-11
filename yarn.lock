@@ -455,7 +455,13 @@
     lodash "^4.2.0"
     to-fast-properties "^2.0.0"
 
-"@types/bluebird@^3.5.18":
+"@types/bluebird-global@^3.5.3":
+  version "3.5.3"
+  resolved "https://registry.yarnpkg.com/@types/bluebird-global/-/bluebird-global-3.5.3.tgz#82e5b7e083873d55dd46ff93c9b06607cf2ace0f"
+  dependencies:
+    "@types/bluebird" "*"
+
+"@types/bluebird@*":
   version "3.5.18"
   resolved "https://registry.yarnpkg.com/@types/bluebird/-/bluebird-3.5.18.tgz#6a60435d4663e290f3709898a4f75014f279c4d6"
 

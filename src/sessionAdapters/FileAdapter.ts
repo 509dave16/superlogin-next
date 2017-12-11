@@ -1,7 +1,6 @@
-import BPromise from 'bluebird'
 import fsBase from 'fs-extra'
 import path from 'path'
-const fs = BPromise.promisifyAll(fsBase)
+const fs = Promise.promisifyAll(fsBase)
 
 const FileAdapter = (config: IConfigure): IAdapter => {
 	const sessionsRoot = config.getItem('session.file.sessionsRoot')
