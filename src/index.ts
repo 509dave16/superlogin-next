@@ -123,10 +123,9 @@ const init = async (
 		requireAnyRole: middleware.requireAnyRole,
 		requireAllRoles: middleware.requireAllRoles
 	}
-
-	Object.keys(emitter).forEach(k => (superlogin[k] = emitter[k]))
-
-	// Inherit emitter
+	for (const key of emitter) {
+		superlogin[key] = emitter[key]
+	} // Inherit emitter
 	return superlogin
 }
 
