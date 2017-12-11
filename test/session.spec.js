@@ -14,13 +14,13 @@ var testToken = {
 	expires: Date.now() + 50000
 }
 
-var config = new Configure({
+var config = Configure({
 	session: {
 		adapter: 'memory'
 	}
 })
 
-var fileConfig = new Configure({
+var fileConfig = Configure({
 	session: {
 		adapter: 'file',
 		file: {
@@ -44,7 +44,7 @@ describe('Session', function() {
 })
 
 function runTest(config, adapter) {
-	var session = new Session(config)
+	var session = Session(config)
 	var previous
 
 	return new Promise(function(resolve, reject) {

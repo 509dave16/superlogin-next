@@ -5,15 +5,15 @@ import { Request } from 'express'
 import URLSafeBase64 from 'urlsafe-base64'
 import uuid from 'uuid'
 
-export const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, new Buffer(16)))
+const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, new Buffer(16)))
 
-export const hashToken = (token: string) =>
+const hashToken = (token: string) =>
 	crypto
 		.createHash('sha256')
 		.update(token)
 		.digest('hex')
 
-export const hashPassword = async (password: string) =>
+const hashPassword = async (password: string) =>
 	new Promise<{ salt: string; derived_key: string }>((resolve, reject) => {
 		pwd.hash(password, (err: string, salt: string, hash: string) => {
 			if (err) {
@@ -26,7 +26,7 @@ export const hashPassword = async (password: string) =>
 		})
 	})
 
-export const verifyPassword = async (
+const verifyPassword = async (
 	hashObj: { iterations?: string; salt?: string; derived_key?: string },
 	password: string
 ) => {
@@ -46,12 +46,7 @@ export const verifyPassword = async (
 	return Promise.reject(false)
 }
 
-export const getDBURL = (db: {
-	protocol: string
-	user: string
-	password: string
-	host: string
-}) => {
+const getDBURL = (db: { protocol: string; user: string; password: string; host: string }) => {
 	let url
 	if (db.user) {
 		url = `${db.protocol + encodeURIComponent(db.user)}:${encodeURIComponent(db.password)}@${
@@ -63,20 +58,20 @@ export const getDBURL = (db: {
 	return url
 }
 
-export const getFullDBURL = (
+const getFullDBURL = (
 	dbConfig: { protocol: string; user: string; password: string; host: string },
 	dbName: string
 ) => `${getDBURL(dbConfig)}/${dbName}`
 
 // tslint:disable-next-line:no-any
-export const toArray = <T>(obj: T | T[]): T[] => {
+const toArray = <T>(obj: T | T[]): T[] => {
 	if (!(obj instanceof Array)) {
 		obj = [obj]
 	}
 	return obj
 }
 
-export const getSessions = (userDoc: IUserDoc) => {
+const getSessions = (userDoc: IUserDoc) => {
 	const sessions: string[] = []
 	if (userDoc.session) {
 		Object.keys(userDoc.session).forEach(mySession => {
@@ -86,7 +81,7 @@ export const getSessions = (userDoc: IUserDoc) => {
 	return sessions
 }
 
-export const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
+const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
 	const sessions: string[] = []
 	if (userDoc.session) {
 		Object.keys(userDoc.session).forEach(mySession => {
@@ -99,7 +94,7 @@ export const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
 }
 
 // Takes a req object and returns the bearer token, or undefined if it is not found
-export const getSessionToken = (req: Request) => {
+const getSessionToken = (req: Request) => {
 	if (req.headers && req.headers.authorization) {
 		const auth = req.headers.authorization as string
 		const parts = auth.split(' ')
@@ -119,7 +114,7 @@ export const getSessionToken = (req: Request) => {
 }
 
 // Generates views for each registered provider in the user design doc
-export const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} } }) => {
+const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} } }) => {
 	const providers = config.getItem('providers')
 	if (!providers) {
 		return ddoc
@@ -137,8 +132,7 @@ export const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { view
 }
 
 // Capitalizes the first letter of a string
-export const capitalizeFirstLetter = (value: string) =>
-	value.charAt(0).toUpperCase() + value.slice(1)
+const capitalizeFirstLetter = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
 /**
  * Access nested JavaScript objects with string key
@@ -149,7 +143,7 @@ export const capitalizeFirstLetter = (value: string) =>
  * @return {object|undefined} a reference to the requested key or undefined if not found
  */
 
-export const getObjectRef = (obj: {}, str: string) => {
+const getObjectRef = (obj: {}, str: string) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -174,7 +168,7 @@ export const getObjectRef = (obj: {}, str: string) => {
  * @return {*} the value the reference was set to
  */
 
-export const setObjectRef = (obj: {}, str: string, val: string | boolean) => {
+const setObjectRef = (obj: {}, str: string, val: string | boolean) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -198,7 +192,7 @@ export const setObjectRef = (obj: {}, str: string, val: string | boolean) => {
  * @return {boolean} true if successful
  */
 
-export const delObjectRef = (obj: {}, str: string) => {
+const delObjectRef = (obj: {}, str: string) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -221,7 +215,7 @@ export const delObjectRef = (obj: {}, str: string) => {
  */
 
 // tslint:disable-next-line:no-any
-export const arrayUnion = (a: {}[], b: string): any[] => {
+const arrayUnion = (a: {}[], b: string): any[] => {
 	const result = a.concat(b)
 	for (let i = 0; i < result.length; i += 1) {
 		for (let j = i + 1; j < result.length; j += 1) {
@@ -231,4 +225,22 @@ export const arrayUnion = (a: {}[], b: string): any[] => {
 		}
 	}
 	return result
+}
+
+export default {
+	URLSafeUUID,
+	hashToken,
+	hashPassword,
+	verifyPassword,
+	getDBURL,
+	getFullDBURL,
+	getSessions,
+	getExpiredSessions,
+	getSessionToken,
+	addProvidersToDesignDoc,
+	capitalizeFirstLetter,
+	getObjectRef,
+	setObjectRef,
+	delObjectRef,
+	arrayUnion
 }

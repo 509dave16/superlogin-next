@@ -23,7 +23,7 @@ var testUser = {
 	roles: ['admin', 'user']
 }
 
-var userConfig = new Configure({
+var userConfig = Configure({
 	test: true,
 	confirmEmail: true,
 	emailFrom: 'noreply@example.com',
@@ -39,7 +39,7 @@ var userConfig = new Configure({
 	}
 })
 
-var dbAuth = new DBAuth(userConfig, userDB, keysDB)
+var dbAuth = DBAuth(userConfig, userDB, keysDB)
 
 describe('DBAuth', function() {
 	var key, previous

@@ -1,4 +1,4 @@
-import DBAuth from 'dbauth'
+import DBAuth from 'dbAuth'
 import { EventEmitter } from 'events'
 import merge from 'lodash.merge'
 import Model from 'sofa-model'

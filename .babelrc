@@ -4,13 +4,24 @@
 		[
 			"@babel/env",
 			{
-				"targets": {
-					"node": "current"
-				},
+				"loose": true,
 				"exclude": ["transform-regenerator"],
 				"shippedProposals": true
 			}
 		]
 	],
-	"plugins": ["module:fast-async"]
+	"plugins": [
+		[
+			"module-resolver",
+			{
+				"root": ["./src"],
+				"alias": {
+					"config": "./config",
+					"dbAuth": "./dbAuth",
+					"sessionAdapters": "./sessionAdapters"
+				}
+			}
+		],
+		"module:fast-async"
+	]
 }
