@@ -33,7 +33,7 @@ const MemoryAdapter = (): IAdapter => {
 	}
 
 	const deleteKeys = async (keys: string[]) => {
-		if (!(keys instanceof Array)) {
+		if (!Array.isArray(keys)) {
 			keys = [keys]
 		}
 		keys.forEach(key => {

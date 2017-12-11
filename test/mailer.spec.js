@@ -2,10 +2,10 @@
 var path = require('path')
 var expect = require('chai').expect
 
-var Configure = require('../lib/configure')
-var Mailer = require('../lib/mailer')
+var Configure = require('../lib/configure').default
+var Mailer = require('../lib/mailer').default
 
-var mailerTestConfig = new Configure({
+var mailerTestConfig = Configure({
 	testMode: {
 		noEmail: true
 	},

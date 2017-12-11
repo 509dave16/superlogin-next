@@ -44,7 +44,7 @@ const middleware = (passport: PassportStatic) => {
 		let denied = true
 		const { roles } = req.user
 		if (roles && roles.length) {
-			possibleRoles.forEach(role => (denied = roles.indexOf(role) === -1))
+			possibleRoles.forEach(role => (roles.indexOf(role) > -1 ? (denied = false) : undefined))
 		}
 		if (denied) {
 			res.status(forbiddenError.status)
@@ -64,7 +64,7 @@ const middleware = (passport: PassportStatic) => {
 		if (!roles || !roles.length) {
 			denied = true
 		} else {
-			requiredRoles.forEach(role => (denied = roles.indexOf(role) === -1))
+			requiredRoles.forEach(role => (roles.indexOf(role) === -1 ? (denied = true) : undefined))
 		}
 		if (denied) {
 			res.status(forbiddenError.status)

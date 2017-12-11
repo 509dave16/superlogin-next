@@ -89,21 +89,23 @@ const user = (
 					sessions.splice(index, 1)
 				}
 			}
-			if (sessions.length) {
-				// Delete the sessions from our session store
-				await session.deleteTokens(sessions)
-				// Remove the keys from our couchDB auth database
-				dbAuth.removeKeys(sessions)
-				// Deauthorize keys from each personal database
-				await dbAuth.deauthorizeUser(userDoc, sessions)
-				if (op === 'expired' || op === 'other') {
-					sessions.forEach(s => delete userDoc.session[s])
-				}
-			}
 			if (op === 'all') {
 				delete userDoc.session
 			}
-			return Promise.resolve(userDoc)
+			if (sessions.length) {
+				if (op === 'expired' || op === 'other') {
+					sessions.forEach(s => delete userDoc.session[s])
+				}
+				await Promise.all([
+					// Delete the sessions from our session store
+					await session.deleteTokens(sessions),
+					// Remove the keys from our couchDB auth database
+					await dbAuth.removeKeys(sessions),
+					// Deauthorize keys from each personal database
+					await dbAuth.deauthorizeUser(userDoc, sessions)
+				])
+			}
+			return userDoc
 		} catch (error) {
 			console.log('error logging out user sessions!', error)
 			return Promise.resolve(userDoc)
@@ -154,22 +156,30 @@ const user = (
 	const logoutOthers = async (session_id: string) => {
 		let logoutUserDoc: IUserDoc
 		let finalUser: IUserDoc | undefined
-		const results = await userDB.query<IUserDoc>('auth/session', {
-			key: session_id,
-			include_docs: true
-		})
+		try {
+			const results = await userDB.query<IUserDoc>('auth/session', {
+				key: session_id,
+				include_docs: true
+			})
 
-		if (results.rows.length) {
-			logoutUserDoc = results.rows[0].doc as IUserDoc
-			if (logoutUserDoc.session && logoutUserDoc.session[session_id]) {
-				finalUser = await logoutUserSessions(logoutUserDoc, 'other', session_id)
+			if (results.rows.length) {
+				logoutUserDoc = results.rows[0].doc as IUserDoc
+				if (logoutUserDoc.session && logoutUserDoc.session[session_id]) {
+					finalUser = await logoutUserSessions(logoutUserDoc, 'other', session_id)
+				}
 			}
-		}
 
-		if (finalUser) {
-			return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+			if (finalUser) {
+				return await userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
+					delete oldUser.session
+					return merge({}, oldUser, finalUser)
+				})
+			}
+			return Promise.resolve(false)
+		} catch (error) {
+			console.log('error logging out others', error)
+			return Promise.resolve(false)
 		}
-		return Promise.resolve(false)
 	}
 
 	const addUserDBs = async (newUser: IUserDoc) => {
@@ -290,7 +300,7 @@ const user = (
 				// Pass!
 				return Promise.resolve()
 			}
-			return Promise.resolve()
+			return Promise.resolve('already in use')
 		} catch (error) {
 			throw new Error(error)
 		}
@@ -375,8 +385,7 @@ const user = (
 		validate: {
 			email: {
 				presence: true,
-				validateEmail: true,
-				validateEmailUsername: false
+				validateEmail: true
 			},
 			username: {
 				presence: true,
@@ -395,7 +404,8 @@ const user = (
 		rename: {
 			username: '_id'
 		}
-	}
+		// tslint:disable-next-line:no-any
+	} as any
 
 	if (emailUsername) {
 		delete userModel.validate.username
@@ -483,68 +493,57 @@ const user = (
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
 			finalUserModel = Object.assign({}, userModel, config.getItem('userModel'))
-			finalUserModel.whitelist = whitelist || finalUserModel.whitelist
+			finalUserModel.whitelist =
+				whitelist && whitelist.length > 0 ? whitelist : finalUserModel.whitelist
 		}
 		const UserModel = new Model(finalUserModel)
 		const u = new UserModel(form)
 		let newUser: IUserDoc
-		return u
-			.process()
-			.then(
-				async (result: typeof newUser) => {
-					newUser = result
-					if (emailUsername) {
-						newUser._id = newUser.email
-					}
-					if (config.getItem('local.sendConfirmEmail')) {
-						newUser.unverifiedEmail = {
-							email: newUser.email,
-							token: util.URLSafeUUID()
-						}
-						delete newUser.email
-					}
-					return util.hashPassword(newUser.password)
-				},
-				async (err: string) =>
-					Promise.reject({
-						error: 'Validation failed',
-						validationErrors: err,
-						status: 400
-					})
-			)
-			.then(async (hash: { salt: string; derived_key: string }) => {
-				// Store password hash
-				newUser.local = {}
-				newUser.local.salt = hash.salt
-				newUser.local.derived_key = hash.derived_key
-				delete newUser.password
-				delete newUser.confirmPassword
-				newUser.signUp = {
-					provider: 'local',
-					timestamp: new Date().toISOString(),
-					ip: req.ip
+		try {
+			newUser = await u.process()
+			if (emailUsername) {
+				newUser._id = newUser.email
+			}
+			if (config.getItem('local.sendConfirmEmail')) {
+				newUser.unverifiedEmail = {
+					email: newUser.email,
+					token: util.URLSafeUUID()
 				}
-				return addUserDBs(newUser)
-			})
-			.then(async (nU: IUserDoc) => logActivity(nU._id, 'signup', 'local', req, nU))
-			.then(async (nU: IUserDoc) => processTransformations(onCreateActions, nU, 'local'))
-			.then(async (finalNewUser: IUserDoc) =>
-				userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
-			)
-			.then(async (result: IUserDoc) => {
-				newUser._rev = result.rev as string
-				if (!config.getItem('local.sendConfirmEmail')) {
-					return Promise.resolve()
-				}
-				return mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
+				delete newUser.email
+			}
+			const hash = await util.hashPassword(newUser.password)
+			// Store password hash
+			newUser.roles = config.getItem('security.defaultRoles')
+			newUser.local = hash
+			delete newUser.password
+			delete newUser.confirmPassword
+			newUser.signUp = {
+				provider: 'local',
+				timestamp: new Date().toISOString(),
+				ip: req.ip
+			}
+			newUser = await addUserDBs(newUser)
+			newUser = await logActivity(newUser._id, 'signup', 'local', req, newUser)
+			newUser = await processTransformations(onCreateActions, newUser, 'local')
+			const result = await userDB.upsert(newUser._id, oldUser => merge({}, oldUser, newUser))
+
+			newUser._rev = result.rev as string
+			if (config.getItem('local.sendConfirmEmail')) {
+				await mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
 					req,
 					user: newUser
 				})
+			}
+			emitter.emit('signup', newUser, 'local')
+			return Promise.resolve(newUser)
+		} catch (error) {
+			console.log('create user failed', error)
+			return Promise.reject({
+				error: 'Validation failed',
+				validationErrors: error,
+				status: 400
 			})
-			.then(async () => {
-				emitter.emit('signup', newUser, 'local')
-				return Promise.resolve(newUser)
-			})
+		}
 	}
 
 	const socialAuth = async (
@@ -594,7 +593,6 @@ const user = (
 				// Now we need to generate a username
 				if (emailUsername) {
 					if (!userDoc.email) {
-						console.log('failing -> no email provided')
 						return Promise.reject({
 							error: 'No email provided',
 							message: `An email is required for registration, but ${provider} didn't supply one.`,
@@ -603,7 +601,6 @@ const user = (
 					}
 					const err = await validateEmailUsername(userDoc.email)
 					if (err) {
-						console.log('validateEmailUsername error', err)
 						return emailFail()
 					}
 					finalUsername = userDoc.email.toLowerCase()
@@ -698,11 +695,8 @@ const user = (
 			emailConflict = await userDB.query('auth/email', { key: profile.emails[0].value })
 		}
 
-		let passed
-		if (emailConflict.rows.length === 0) {
-			passed = true
-		} else {
-			passed = true
+		let passed = true
+		if (emailConflict.rows.length > 0) {
 			emailConflict.rows.forEach(row => {
 				if (row.id !== user_id) {
 					passed = false
@@ -718,9 +712,7 @@ const user = (
 		}
 
 		// Insert provider info
-		linkUser[provider] = {}
-		linkUser[provider].auth = auth
-		linkUser[provider].profile = profile
+		linkUser = { ...linkUser, [provider]: { auth, profile } }
 		if (!linkUser.providers) {
 			linkUser.providers = []
 		}
@@ -733,32 +725,11 @@ const user = (
 		delete linkUser[provider].profile._raw
 		const userDoc = await logActivity(linkUser._id, 'link', provider, req, linkUser)
 		const finalUser = await processTransformations(onLinkActions, userDoc, provider)
-		return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+		return finalUser
 	}
 
 	const unlink = async (user_id: string, provider: string) => {
-		let unLinkUser: IUserDoc
-		const theUser = await userDB.get<IUserDoc>(user_id)
-		unLinkUser = theUser
-		if (!provider) {
-			return Promise.reject({
-				error: 'Unlink failed',
-				message: 'You must specify a provider to unlink.',
-				status: 400
-			})
-		}
-		// We can only unlink if there are at least two providers
-		if (
-			!unLinkUser.providers ||
-			!(unLinkUser.providers instanceof Array) ||
-			unLinkUser.providers.length < 2
-		) {
-			return Promise.reject({
-				error: 'Unlink failed',
-				message: "You can't unlink your only provider!",
-				status: 400
-			})
-		}
 		// We cannot unlink local
 		if (provider === 'local') {
 			return Promise.reject({
@@ -767,22 +738,50 @@ const user = (
 				status: 400
 			})
 		}
-		// Check that the provider exists
-		if (!unLinkUser[provider] || typeof unLinkUser[provider] !== 'object') {
-			return Promise.reject({
-				error: 'Unlink failed',
-				message: `Provider: ${util.capitalizeFirstLetter(provider)} not found.`,
-				status: 404
-			})
-		}
-		return userDB.upsert<IUserDoc>(unLinkUser._id, oldUser => {
-			const { [provider]: deleted, ...newUser } = oldUser
-			if (newUser.providers) {
-				// Remove the unlinked provider from the list of providers
-				newUser.providers.splice(unLinkUser.providers.indexOf(provider), 1)
+		try {
+			let unLinkUser = await userDB.get<IUserDoc>(user_id)
+			if (!provider) {
+				return Promise.reject({
+					error: 'Unlink failed',
+					message: 'You must specify a provider to unlink.',
+					status: 400
+				})
 			}
-			return newUser
-		})
+			// We can only unlink if there are at least two providers
+			if (
+				!unLinkUser.providers ||
+				!Array.isArray(unLinkUser.providers) ||
+				unLinkUser.providers.length < 2
+			) {
+				console.log('unlink failed', unLinkUser)
+				return Promise.reject({
+					error: 'Unlink failed',
+					message: "You can't unlink your only provider!",
+					status: 400
+				})
+			}
+			// Check that the provider exists
+			if (!unLinkUser[provider] || typeof unLinkUser[provider] !== 'object') {
+				return Promise.reject({
+					error: 'Unlink failed',
+					message: `Provider: ${util.capitalizeFirstLetter(provider)} not found.`,
+					status: 404
+				})
+			}
+			await userDB.upsert<IUserDoc>(unLinkUser._id, oldUser => {
+				const { [provider]: deleted, ...newUser } = oldUser
+				if (newUser.providers) {
+					// Remove the unlinked provider from the list of providers
+					newUser.providers.splice(unLinkUser.providers.indexOf(provider), 1)
+				}
+				unLinkUser = newUser
+				return newUser
+			})
+			return unLinkUser
+		} catch (error) {
+			console.log('error unlinking user', error)
+			return undefined
+		}
 	}
 
 	const createSession = async (user_id: string, provider: string, req: { ip: string }) => {
@@ -792,86 +791,100 @@ const user = (
 		let password: string
 		req = req || {}
 		const { ip } = req
-		createSessionUser = await userDB.get<IUserDoc>(user_id)
-		const token = await generateSession(createSessionUser._id, createSessionUser.roles)
-		password = token.password
-		newToken = token
-		newToken.provider = provider
-		await session.storeToken(newToken)
-		dbAuth.storeKey(user_id, newToken.key, password, newToken.expires, createSessionUser.roles)
-
-		// authorize the new session across all dbs
-		if (!!createSessionUser.personalDBs) {
-			await dbAuth.authorizeUserSessions(
+		try {
+			createSessionUser = await userDB.get<IUserDoc>(user_id)
+			const token = await generateSession(createSessionUser._id, createSessionUser.roles)
+			password = token.password
+			newToken = token
+			newToken.provider = provider
+			await session.storeToken(newToken)
+			await dbAuth.storeKey(
 				user_id,
-				createSessionUser.personalDBs,
 				newToken.key,
+				password,
+				newToken.expires,
 				createSessionUser.roles
 			)
-		}
 
-		if (!createSessionUser.session) {
-			createSessionUser.session = {}
-		}
-		newSession = {
-			issued: newToken.issued,
-			expires: newToken.expires,
-			provider,
-			ip
-		}
-		createSessionUser.session[newToken.key] = newSession
-		// Clear any failed login attempts
-		if (provider === 'local') {
-			if (!createSessionUser.local) {
-				createSessionUser.local = {}
-			}
-			createSessionUser.local.failedLoginAttempts = 0
-			delete createSessionUser.local.lockedUntil
-		}
-		const userDoc = await logActivity(
-			createSessionUser._id,
-			'login',
-			provider,
-			req,
-			createSessionUser
-		)
-		const finalUser = await logoutUserSessions(userDoc, 'expired')
-		createSessionUser = finalUser
-		await userDB.upsert<IUserDoc>(finalUser._id, oldDoc => {
-			if (oldDoc.local) {
-				delete oldDoc.local.lockedUntil
+			// authorize the new session across all dbs
+			if (!!createSessionUser.personalDBs) {
+				await dbAuth.authorizeUserSessions(
+					user_id,
+					createSessionUser.personalDBs,
+					newToken.key,
+					createSessionUser.roles
+				)
 			}
 
-			return merge({}, oldDoc, finalUser)
-		})
-
-		newSession.token = newToken.key
-		newSession.password = password
-		newSession.user_id = createSessionUser._id
-		newSession.roles = createSessionUser.roles
-		// Inject the list of userDBs
-		if (typeof createSessionUser.personalDBs === 'object') {
-			const userDBs = {}
-			let publicURL: string
-			if (config.getItem('dbServer.publicURL')) {
-				const dbObj = url.parse(config.getItem('dbServer.publicURL'))
-				dbObj.auth = `${newSession.token}:${newSession.password}`
-				publicURL = dbObj.href as string
-			} else {
-				publicURL = `${config.getItem('dbServer.protocol') + newSession.token}:${
-					newSession.password
-				}@${config.getItem('dbServer.host')}/`
+			if (!createSessionUser.session) {
+				createSessionUser.session = {}
 			}
-			Object.keys(createSessionUser.personalDBs).forEach(finalDBName => {
-				userDBs[createSessionUser.personalDBs[finalDBName].name] = publicURL + finalDBName
+			newSession = {
+				issued: newToken.issued,
+				expires: newToken.expires,
+				provider,
+				ip
+			}
+			createSessionUser.session[newToken.key] = newSession
+			// Clear any failed login attempts
+			if (provider === 'local') {
+				if (!createSessionUser.local) {
+					createSessionUser.local = {}
+				}
+				createSessionUser.local.failedLoginAttempts = 0
+				delete createSessionUser.local.lockedUntil
+			}
+			const userDoc = await logActivity(
+				createSessionUser._id,
+				'login',
+				provider,
+				req,
+				createSessionUser
+			)
+			const finalUser = await logoutUserSessions(userDoc, 'expired')
+			createSessionUser = finalUser
+			await userDB.upsert<IUserDoc>(finalUser._id, oldDoc => {
+				if (oldDoc.local) {
+					delete oldDoc.local.lockedUntil
+				}
+
+				return merge({}, oldDoc, finalUser)
 			})
-			newSession.userDBs = userDBs
+
+			newSession.token = newToken.key
+			newSession.password = password
+			newSession.user_id = createSessionUser._id
+			newSession.roles = createSessionUser.roles
+			// Inject the list of userDBs
+			if (typeof createSessionUser.personalDBs === 'object') {
+				const userDBs = {}
+				let publicURL: string
+				if (config.getItem('dbServer.publicURL')) {
+					const dbObj = url.parse(config.getItem('dbServer.publicURL')) as {
+						auth: string
+						format(): string
+					}
+					dbObj.auth = `${newSession.token}:${newSession.password}`
+					publicURL = dbObj.format()
+				} else {
+					publicURL = `${config.getItem('dbServer.protocol')}${newSession.token}:${
+						newSession.password
+					}@${config.getItem('dbServer.host')}/`
+				}
+				Object.keys(createSessionUser.personalDBs).forEach(finalDBName => {
+					userDBs[createSessionUser.personalDBs[finalDBName].name] = `${publicURL}${finalDBName}`
+				})
+				newSession.userDBs = userDBs
+			}
+			if (createSessionUser.profile) {
+				newSession.profile = createSessionUser.profile
+			}
+			emitter.emit('login', newSession, provider)
+			return newSession
+		} catch (error) {
+			console.log('failed creating a user session', error)
+			return undefined
 		}
-		if (createSessionUser.profile) {
-			newSession.profile = createSessionUser.profile
-		}
-		emitter.emit('login', newSession, provider)
-		return newSession
 	}
 
 	const handleFailedLogin = async (loginUser: IUserDoc, req: { ip: string }) => {
@@ -896,29 +909,34 @@ const user = (
 		return !!loginUser.local.lockedUntil
 	}
 
-	const refreshSession = async (key: string) => {
+	const refreshSession = async (key: string, pass: string) => {
 		let newSession: ISession
-		const oldToken = await session.fetchToken(key)
-		newSession = oldToken
-		newSession.expires = Date.now() + sessionLife * 1000
-		const results = await Promise.all([
-			userDB.get<IUserDoc>(newSession._id),
-			session.storeToken(newSession)
-		])
-		const userDoc: IUserDoc = results[0]
-		userDoc.session[key].expires = newSession.expires
-		// Clean out expired sessions on refresh
-		const finalUser = await logoutUserSessions(userDoc, 'expired')
-		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-		delete newSession.password
-		newSession.token = newSession.key
-		delete newSession.key
-		newSession.user_id = newSession._id
-		delete newSession._id
-		delete newSession.salt
-		delete newSession.derived_key
-		emitter.emit('refresh', newSession)
-		return newSession
+		try {
+			const oldToken = await session.fetchToken(key)
+			newSession = oldToken
+			newSession.expires = Date.now() + sessionLife * 1000
+			const results = await Promise.all([
+				await userDB.get<IUserDoc>(newSession._id),
+				await session.storeToken(newSession)
+			])
+			const userDoc: IUserDoc = results[0]
+			userDoc.session[key] = { ...userDoc.session[key], expires: newSession.expires }
+			// Clean out expired sessions on refresh
+			const finalUser = await logoutUserSessions(userDoc, 'expired')
+			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+			delete newSession.password
+			newSession.token = newSession.key
+			delete newSession.key
+			newSession.user_id = newSession._id
+			delete newSession._id
+			delete newSession.salt
+			delete newSession.derived_key
+			emitter.emit('refresh', newSession)
+			return newSession
+		} catch (error) {
+			console.log('error refreshing session', error)
+			return undefined
+		}
 	}
 
 	const resetPassword = (form: { token: string; password: string }, req: { ip: string }) => {
@@ -959,8 +977,10 @@ const user = (
 				}
 				resetUser.local.salt = hash.salt
 				resetUser.local.derived_key = hash.derived_key
-				if (resetUser.providers.indexOf('local') === -1) {
-					resetUser.providers.push('local')
+				if (!resetUser.providers) {
+					resetUser.providers = ['local']
+				} else if (resetUser.providers.indexOf('local') === -1) {
+					resetUser.providers = [...resetUser.providers, 'local']
 				}
 				// logout user completely
 				return logoutUserSessions(resetUser, 'all')
@@ -1042,37 +1062,42 @@ const user = (
 		let forgotPwUser: IUserDoc
 		let token: string
 		let tokenHash: string
-		const result = await userDB.query<IUserDoc>('auth/email', { key: email, include_docs: true })
+		try {
+			const result = await userDB.query<IUserDoc>('auth/email', { key: email, include_docs: true })
 
-		if (!result.rows.length) {
-			return Promise.reject({
-				error: 'User not found',
-				status: 404
-			})
+			if (!result.rows.length) {
+				return Promise.reject({
+					error: 'User not found',
+					status: 404
+				})
+			}
+			forgotPwUser = result.rows[0].doc as IUserDoc
+			token = util.URLSafeUUID()
+			tokenHash = util.hashToken(token)
+			forgotPwUser.forgotPassword = {
+				token: tokenHash, // Store secure hashed token
+				issued: Date.now(),
+				expires: Date.now() + tokenLife * 1000
+			}
+			const finalUser = await logActivity(
+				forgotPwUser._id,
+				'forgot password',
+				'local',
+				req,
+				forgotPwUser
+			)
+			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+			mailer.sendEmail('forgotPassword', forgotPwUser.email || forgotPwUser.unverifiedEmail.email, {
+				user: forgotPwUser,
+				req,
+				token
+			}) // Send user the unhashed token
+			emitter.emit('forgot-password', forgotPwUser)
+			return forgotPwUser.forgotPassword
+		} catch (error) {
+			console.log('error in forgot password', error)
+			return undefined
 		}
-		forgotPwUser = result.rows[0].doc as IUserDoc
-		token = util.URLSafeUUID()
-		tokenHash = util.hashToken(token)
-		forgotPwUser.forgotPassword = {
-			token: tokenHash, // Store secure hashed token
-			issued: Date.now(),
-			expires: Date.now() + tokenLife * 1000
-		}
-		const finalUser = await logActivity(
-			forgotPwUser._id,
-			'forgot password',
-			'local',
-			req,
-			forgotPwUser
-		)
-		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-		mailer.sendEmail('forgotPassword', forgotPwUser.email || forgotPwUser.unverifiedEmail.email, {
-			forgotPwUser,
-			req,
-			token
-		}) // Send user the unhashed token
-		emitter.emit('forgot-password', forgotPwUser)
-		return forgotPwUser.forgotPassword
 	}
 
 	const verifyEmail = async (token: string, req: { ip: string }) => {
@@ -1109,39 +1134,47 @@ const user = (
 		req: { user: { provider: string }; ip: string }
 	) => {
 		req = req || {}
+		let changeEmailUser: IUserDoc
 		if (!req.user) {
 			req.user = { provider: 'local' }
 		}
-		let changeEmailUser: IUserDoc
-		const err = await validateEmail(newEmail)
 
-		if (err) {
-			return Promise.reject(err)
-		}
-		const userDoc = await userDB.get<IUserDoc>(user_id)
+		try {
+			const err = await validateEmail(newEmail)
 
-		changeEmailUser = userDoc
-		if (config.getItem('local.sendConfirmEmail')) {
-			changeEmailUser.unverifiedEmail = {
-				email: newEmail,
-				token: util.URLSafeUUID()
+			if (err) {
+				return Promise.reject(err)
 			}
-			return mailer.sendEmail('confirmEmail', changeEmailUser.unverifiedEmail.email, {
+			changeEmailUser = await userDB.get<IUserDoc>(user_id)
+
+			if (config.getItem('local.sendConfirmEmail')) {
+				changeEmailUser.unverifiedEmail = {
+					email: newEmail,
+					token: util.URLSafeUUID()
+				}
+				await mailer.sendEmail('confirmEmail', changeEmailUser.unverifiedEmail.email, {
+					req,
+					user: changeEmailUser
+				})
+			} else {
+				changeEmailUser.email = newEmail
+			}
+
+			emitter.emit('email-changed', changeEmailUser)
+
+			const finalUser = await logActivity(
+				changeEmailUser._id,
+				'changed email',
+				req.user.provider,
 				req,
 				changeEmailUser
-			})
+			)
+			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+			return finalUser
+		} catch (error) {
+			console.log('error changing email', error)
+			return
 		}
-		changeEmailUser.email = newEmail
-
-		emitter.emit('email-changed', changeEmailUser)
-		const finalUser = await logActivity(
-			changeEmailUser._id,
-			'changed email',
-			req.user.provider,
-			req,
-			changeEmailUser
-		)
-		return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 	}
 
 	const addUserDB = async (
@@ -1211,7 +1244,7 @@ const user = (
 								return Promise.resolve()
 							}
 						} catch (error) {
-							console.log('error removing user db!', db, dbName, error)
+							console.log('error removing user db', db, dbName, error)
 						}
 					}
 					return Promise.resolve()
@@ -1255,57 +1288,65 @@ const user = (
 				})
 			}
 			logoutUserDoc = results.rows[0].doc as IUserDoc
-			user_id = logoutUserDoc._id
-			await logoutUserSessions(logoutUserDoc, 'all')
 		}
+		user_id = logoutUserDoc._id
+		await logoutUserSessions(logoutUserDoc, 'all')
 		emitter.emit('logout', user_id)
 		emitter.emit('logout-all', user_id)
-		return userDB.upsert(logoutUserDoc._id, oldUser => merge({}, oldUser, logoutUserDoc))
+		return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
+			delete oldUser.session
+			return merge({}, oldUser, logoutUserDoc)
+		})
 	}
 
 	const logoutSession = async (session_id: string) => {
 		let logoutUserDoc: IUserDoc
 		let startSessions = 0
 		let endSessions = 0
-		const results = await userDB.query<IUserDoc>('auth/session', {
-			key: session_id,
-			include_docs: true
-		})
-
-		if (!results.rows.length) {
-			return Promise.reject({
-				error: 'unauthorized',
-				status: 401
+		try {
+			const results = await userDB.query<IUserDoc>('auth/session', {
+				key: session_id,
+				include_docs: true
 			})
-		}
-		logoutUserDoc = results.rows[0].doc as IUserDoc
-		if (logoutUserDoc.session) {
-			startSessions = Object.keys(logoutUserDoc.session).length
-			if (logoutUserDoc.session[session_id]) {
-				delete logoutUserDoc.session[session_id]
+
+			if (!results.rows.length) {
+				return Promise.reject({
+					error: 'unauthorized',
+					status: 401
+				})
 			}
-		}
-		await session.deleteTokens(session_id)
-		dbAuth.removeKeys(session_id)
-		if (logoutUserDoc) {
-			await dbAuth.deauthorizeUser(logoutUserDoc, session_id)
-		}
-		const finalUser = await logoutUserSessions(logoutUserDoc, 'expired')
-
-		logoutUserDoc = finalUser
-		if (logoutUserDoc.session) {
-			endSessions = Object.keys(logoutUserDoc.session).length
-		}
-		emitter.emit('logout', logoutUserDoc._id)
-		if (startSessions !== endSessions) {
-			return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
-				if (oldUser.session) {
-					delete oldUser.session[session_id]
+			logoutUserDoc = results.rows[0].doc as IUserDoc
+			if (logoutUserDoc.session) {
+				startSessions = Object.keys(logoutUserDoc.session).length
+				if (logoutUserDoc.session[session_id]) {
+					delete logoutUserDoc.session[session_id]
 				}
-				return merge({}, oldUser, logoutUserDoc)
-			})
+			}
+			await Promise.all([
+				await session.deleteTokens(session_id),
+				await dbAuth.removeKeys(session_id),
+				logoutUserDoc
+					? await dbAuth.deauthorizeUser(logoutUserDoc, session_id)
+					: await Promise.resolve()
+			])
+			const finalUser = await logoutUserSessions(logoutUserDoc, 'expired')
+
+			logoutUserDoc = finalUser
+			if (logoutUserDoc.session) {
+				endSessions = Object.keys(logoutUserDoc.session).length
+			}
+			emitter.emit('logout', logoutUserDoc._id)
+			if (startSessions !== endSessions) {
+				return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
+					delete oldUser.session
+					return merge({}, oldUser, logoutUserDoc)
+				})
+			}
+			return Promise.resolve(false)
+		} catch (error) {
+			console.log('error logging out session', error)
+			return Promise.resolve(false)
 		}
-		return Promise.resolve(false)
 	}
 
 	const remove = async (user_id: string, destroyDBs: boolean) => {

@@ -73,7 +73,7 @@ const dbauth = (
 		return designDoc
 	}
 
-	const storeKey = (
+	const storeKey = async (
 		username: string,
 		key: string,
 		password: string,
@@ -81,10 +81,10 @@ const dbauth = (
 		roles?: string[]
 	) => adapter.storeKey(username, key, password, expires, roles)
 
-	const removeKeys = (keys: string | string[]) => adapter.removeKeys(keys)
+	const removeKeys = async (keys: string | string[]) => adapter.removeKeys(keys)
 
 	// tslint:disable-next-line:no-any
-	const authorizeKeys = (
+	const authorizeKeys = async (
 		user_id: string,
 		db: PouchDB.Database & { name: string },
 		keys: string[],
@@ -93,7 +93,8 @@ const dbauth = (
 	) => adapter.authorizeKeys(user_id, db, keys, permissions, roles)
 
 	// tslint:disable-next-line:no-any
-	const deauthorizeKeys = (db: any, keys: string[] | string) => adapter.deauthorizeKeys(db, keys)
+	const deauthorizeKeys = async (db: any, keys: string[] | string) =>
+		adapter.deauthorizeKeys(db, keys)
 
 	const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
 		// If keys is not specified we will deauthorize all of the users sessions
@@ -108,8 +109,7 @@ const dbauth = (
 						const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
 							skip_setup: true
 						})
-						deauthorizeKeys(db, keys)
-						return Promise.resolve()
+						return deauthorizeKeys(db, keys)
 					} catch (error) {
 						console.log('error deauthorizing db!', error)
 						return Promise.resolve()
@@ -167,75 +167,88 @@ const dbauth = (
 		if (type === 'shared') {
 			finalDBName = dbName
 		} else {
-			finalDBName = `${prefix + dbName}$${username}`
+			finalDBName = `${prefix}${dbName}$${username}`
 		}
-		await createDB(finalDBName)
-		newDB = new PouchDB(
-			`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
-		) as PouchDB.Database & { name: string }
-		adapter.initSecurity(newDB, adminRoles, memberRoles)
+		try {
+			await createDB(finalDBName)
+			newDB = new PouchDB(
+				`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
+			) as PouchDB.Database & { name: string }
+			await adapter.initSecurity(newDB, adminRoles, memberRoles)
 
-		// Seed the design docs
-		if (designDocs && Array.isArray(designDocs)) {
-			await Promise.all(
-				designDocs.map(async ddName => {
-					const dDoc = getDesignDoc(ddName)
-					if (dDoc) {
-						await seed(newDB, dDoc)
-					} else {
-						console.warn(`Failed to locate design doc: ${ddName}`)
-						return Promise.resolve()
+			// Seed the design docs
+			if (designDocs && Array.isArray(designDocs)) {
+				await Promise.all(
+					designDocs.map(async ddName => {
+						const dDoc = getDesignDoc(ddName)
+						if (dDoc) {
+							await seed(newDB, dDoc)
+						} else {
+							console.warn(`Failed to locate design doc: ${ddName}`)
+							return Promise.resolve()
+						}
+					})
+				)
+			}
+			// Authorize the user's existing DB keys to access the new database
+			const keysToAuthorize: string[] = []
+			if (userDoc.session) {
+				Object.keys(userDoc.session).forEach(key => {
+					const { expires } = userDoc.session[key]
+					if (expires && expires > Date.now()) {
+						keysToAuthorize.push(key)
 					}
 				})
-			)
+			}
+			if (keysToAuthorize.length > 0) {
+				await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
+			}
+			return finalDBName
+		} catch (error) {
+			console.log('create user db error', error)
+			return finalDBName
 		}
-		// Authorize the user's existing DB keys to access the new database
-		const keysToAuthorize: string[] = []
-		if (userDoc.session) {
-			Object.keys(userDoc.session).forEach(key => {
-				const { expires } = userDoc.session[key]
-				if (expires && expires > Date.now()) {
-					keysToAuthorize.push(key)
-				}
-			})
-		}
-		if (keysToAuthorize.length > 0) {
-			authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
-		}
-		return finalDBName
 	}
 
 	const removeExpiredKeys = async () => {
 		const keysByUser = {}
 		const userDocs = {}
 		const expiredKeys: string[] = []
-		// query a list of expired keys by user
-		const results = await userDB.query('auth/expiredKeys', {
-			endkey: Date.now(),
-			include_docs: true
-		})
-		// group by user
-		results.rows.forEach(row => {
-			keysByUser[row.value.user] = row.value.key
-			expiredKeys.push(row.value.key)
-			// Add the user doc if it doesn't already exist
-			if (typeof userDocs[row.value.user] === 'undefined') {
-				userDocs[row.value.user] = row.doc
-			}
-			// remove each key from user.session
-			if (userDocs[row.value.user].session) {
-				Object.keys(userDocs[row.value.user].session).forEach(
-					session =>
-						row.value.key === session ? delete userDocs[row.value.user].session[session] : undefined
-				)
-			}
-		})
-		await Promise.all(
-			Object.keys(keysByUser).map(async user => deauthorizeUser(userDocs[user], keysByUser[user]))
-		)
-		// Bulk save user doc updates
-		await userDB.bulkDocs(Object.values(userDocs))
-		return expiredKeys
+		try {
+			// query a list of expired keys by user
+			const results = await userDB.query('auth/expiredKeys', {
+				endkey: Date.now(),
+				include_docs: true
+			})
+			// group by user
+			results.rows.forEach(row => {
+				keysByUser[row.value.user] = row.value.key
+				expiredKeys.push(row.value.key)
+				// Add the user doc if it doesn't already exist
+				if (typeof userDocs[row.value.user] === 'undefined') {
+					userDocs[row.value.user] = row.doc
+				}
+				// remove each key from user.session
+				if (userDocs[row.value.user].session) {
+					Object.keys(userDocs[row.value.user].session).forEach(
+						session =>
+							row.value.key === session
+								? delete userDocs[row.value.user].session[session]
+								: undefined
+					)
+				}
+			})
+			await removeKeys(expiredKeys)
+			await Promise.all(
+				Object.keys(keysByUser).map(async user => deauthorizeUser(userDocs[user], keysByUser[user]))
+			)
+			// Bulk save user doc updates
+			await userDB.bulkDocs(Object.values(userDocs))
+			return expiredKeys
+		} catch (error) {
+			console.log('error expiring keys', error)
+			return expiredKeys
+		}
 	}
 
 	const getDBConfig = (dbName: string, type?: string) => {

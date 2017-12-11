@@ -4,9 +4,9 @@ var Promise = require('bluebird')
 var seed = require('pouchdb-seed-design')
 var request = require('superagent')
 var expect = require('chai').expect
-var DBAuth = require('../lib/dbauth')
-var Configure = require('../lib/configure')
-var util = require('../lib/util.js')
+var DBAuth = require('../lib/dbauth').default
+var Configure = require('../lib/configure').default
+var util = require('../lib/util.js').default
 var config = require('./test.config.js')
 PouchDB.plugin(require('pouchdb-upsert'))
 

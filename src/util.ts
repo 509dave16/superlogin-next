@@ -148,7 +148,7 @@ const getObjectRef = (obj: {}, str: string) => {
 	const pList = str.split('.')
 	while (pList.length) {
 		const n = pList.shift()
-		if (n && n in obj) {
+		if (n && obj && n in obj) {
 			obj = obj[n]
 		} else {
 			return undefined
@@ -196,12 +196,11 @@ const delObjectRef = (obj: {}, str: string) => {
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
 	const len = pList.length
-	pList.forEach(elem => {
-		if (obj[elem]) {
-			obj = obj[elem]
-		}
-	})
-	delete obj[pList[len - 1]]
+	pList.forEach(elem => (!obj || !obj[elem] ? false : (obj = obj[elem])))
+	if (obj) {
+		delete obj[pList[len - 1]]
+	}
+
 	return true
 }
 

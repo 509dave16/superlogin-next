@@ -20,48 +20,63 @@ const Session = (config: IConfigure) => {
 	}
 
 	return {
-		confirmToken: async (keys: string | string[], password: string) => {
-			const entries: string[] = []
-			if (!Array.isArray(keys)) {
-				keys = [keys]
+		confirmToken: async (key: string, password: string) => {
+			let token
+			try {
+				const result = await adapter.getKey(`${tokenPrefix}:${key}`)
+				if (!result) {
+					return Promise.reject('invalid token')
+				}
+				token = JSON.parse(result)
+				await util.verifyPassword(token, password)
+
+				delete token.salt
+				delete token.derived_key
+				return token
+			} catch (error) {
+				console.log('confirm token error', error)
+				return Promise.reject('invalid token')
 			}
-			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
-			return adapter.deleteKeys(entries)
 		},
 		deleteTokens: async (keys: string | string[]) => {
-			const entries: string[] = []
 			if (!Array.isArray(keys)) {
 				keys = [keys]
 			}
-			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
-			return adapter.deleteKeys(entries)
+			return adapter.deleteKeys(keys.map(key => `${tokenPrefix}:${key}`))
 		},
 		fetchToken: async (key: string) =>
 			adapter.getKey(`${tokenPrefix}:${key}`).then(result => JSON.parse(result)),
 		storeToken: async (token: ISession) => {
-			if (!token.password && token.salt && token.derived_key) {
+			const finalToken = Object.assign({}, token)
+			try {
+				if (!finalToken.password && finalToken.salt && finalToken.derived_key) {
+					await adapter.storeKey(
+						`${tokenPrefix}:${finalToken.key}`,
+						finalToken.expires - Date.now(),
+						JSON.stringify(finalToken)
+					)
+					delete finalToken.salt
+					delete finalToken.derived_key
+					return finalToken
+				}
+				const hash = await util.hashPassword(finalToken.password)
+
+				finalToken.salt = hash.salt
+				finalToken.derived_key = hash.derived_key
+				delete finalToken.password
 				await adapter.storeKey(
-					`${tokenPrefix}:${token.key}`,
-					token.expires - Date.now(),
-					JSON.stringify(token)
+					`${tokenPrefix}:${finalToken.key}`,
+					finalToken.expires - Date.now(),
+					JSON.stringify(finalToken)
 				)
-				delete token.salt
-				delete token.derived_key
+
+				delete finalToken.salt
+				delete finalToken.derived_key
+				return finalToken
+			} catch (error) {
+				console.log('error storing token', error)
+				return undefined
 			}
-			const hash = await util.hashPassword(token.password)
-
-			token.salt = hash.salt
-			token.derived_key = hash.derived_key
-			delete token.password
-			await adapter.storeKey(
-				`${tokenPrefix}:${token.key}`,
-				token.expires - Date.now(),
-				JSON.stringify(token)
-			)
-
-			delete token.salt
-			delete token.derived_key
-			return Promise.resolve(token)
 		},
 		quit: async () => adapter.quit()
 	}

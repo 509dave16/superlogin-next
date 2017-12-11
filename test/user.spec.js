@@ -1,12 +1,12 @@
 'use strict'
 var events = require('events')
 var path = require('path')
-var PouchDB = require('pouchdb')
+var PouchDB = require('pouchdb-node')
 var Promise = require('bluebird')
-var Configure = require('../lib/configure')
-var User = require('../lib/user')
-var Mailer = require('../lib/mailer')
-var util = require('../lib/util')
+var Configure = require('../lib/configure').default
+var User = require('../lib/user').default
+var Mailer = require('../lib/mailer').default
+var util = require('../lib/util').default
 var seed = require('pouchdb-seed-design')
 var request = require('superagent')
 var config = require('./test.config.js')
@@ -20,6 +20,7 @@ var dbUrl = util.getDBURL(config.dbServer)
 
 var emitter = new events.EventEmitter()
 
+PouchDB.plugin(require('pouchdb-upsert'))
 PouchDB.setMaxListeners(20)
 var userDB = new PouchDB(dbUrl + '/superlogin_test_users')
 var keysDB = new PouchDB(dbUrl + '/superlogin_test_keys')
@@ -247,6 +248,7 @@ describe('User Model', function() {
 				throw new Error('Validation errors should have been generated')
 			})
 			.catch(function(err) {
+				console.log('cool', err)
 				if (err.validationErrors) {
 					expect(err.validationErrors.email[0]).to.equal('Email already in use')
 					expect(err.validationErrors.username[0]).to.equal('Username already in use')
@@ -314,7 +316,6 @@ describe('User Model', function() {
 
 		return previous
 			.then(function() {
-				// console.log('Refreshing session');
 				return user.refreshSession(sessionKey, sessionPass)
 			})
 			.then(function(result) {

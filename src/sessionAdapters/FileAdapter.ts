@@ -41,13 +41,8 @@ const FileAdapter = (config: IConfigure): IAdapter => {
 		if (!(keys instanceof Array)) {
 			keys = [keys]
 		}
-		const deleteQueue = keys.map(key => fs.removeAsync(_getFilepath(key)))
-
-		return Promise.all(deleteQueue).then(
-			done =>
-				// this._removeExpired();
-				done.length
-		)
+		const done = await Promise.all(keys.map(async key => await fs.removeAsync(_getFilepath(key))))
+		return done.length
 	}
 
 	const quit = async () => Promise.resolve()

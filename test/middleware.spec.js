@@ -1,6 +1,6 @@
 'use strict'
 var expect = require('chai').expect
-var Middleware = require('../lib/middleware')
+var Middleware = require('../lib/middleware').default
 
 var middleware = Middleware({})
 

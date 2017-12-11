@@ -40,30 +40,30 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		return newKey
 	}
 
-	const removeKeys = async (keys: string[]) => {
+	const removeKeys = async (keys: string | string[]) => {
 		keys = util.toArray(keys)
-		const keylist: string[] = []
 		// Transform the list to contain the CouchDB _user ids
-		keys.forEach(key => {
-			keylist.push(`org.couchdb.user:${key}`)
-		})
+		const keylist: string[] = keys.map(key => `org.couchdb.user:${key}`)
 		const toDelete: {
 			_id: string
 			_rev: string
 			_deleted: boolean
 		}[] = []
 		try {
-			const keyDocs = await couchAuthDB.allDocs({ keys: keylist })
-			keyDocs.rows.forEach(row => {
-				if (!row.value.deleted) {
-					const deletion = {
-						_id: row.id,
-						_rev: row.value.rev,
-						_deleted: true
+			// tslint:disable-next-line:no-any
+			const keyDocs: any = await couchAuthDB.allDocs({ keys: keylist })
+			keyDocs.rows.forEach(
+				(row: { id: string; error: string; value: { rev: string; _deleted: boolean } }) => {
+					if (!row.error && (!row.value || !row.value._deleted)) {
+						const deletion = {
+							_id: row.id,
+							_rev: row.value.rev,
+							_deleted: true
+						}
+						toDelete.push(deletion)
 					}
-					toDelete.push(deletion)
 				}
-			})
+			)
 			if (toDelete.length) {
 				return couchAuthDB.bulkDocs(toDelete)
 			}
@@ -204,23 +204,31 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 
 declare global {
 	interface IDBAdapter {
-		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): void
+		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): Promise<void>
 		authorizeKeys(
 			user_id: string,
 			db: PouchDB.Database & { name: string },
 			keys: string[] | string,
 			permissions?: string[],
 			roles?: string[]
-		): void
-		deauthorizeKeys(db: PouchDB.Database & { name: string }, keys: string[] | string): void
-		removeKeys(keys: string[] | string): void
+		): Promise<void>
+		deauthorizeKeys(db: PouchDB.Database & { name: string }, keys: string[] | string): Promise<void>
+		removeKeys(keys: string[] | string): Promise<boolean | PouchDB.Core.Response[]>
 		storeKey(
 			username: string,
 			key: string,
 			password: string,
 			expires?: number,
 			roles?: string[]
-		): void
+		): Promise<{
+			_id: string
+			type: string
+			name: string
+			user_id: string
+			password: string
+			expires: number
+			roles: string[]
+		}>
 	}
 }
 

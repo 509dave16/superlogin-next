@@ -1,9 +1,11 @@
 module.exports = {
-  test: {
-    views: {
-      mytest: function(doc) {
-        emit(doc._id);
-      }
-    }
-  }
-};
+	test: {
+		views: {
+			mytest: {
+				map: function(doc) {
+					emit(doc._id)
+				}
+			}
+		}
+	}
+}
