@@ -1,6 +1,6 @@
-import util from './util'
 import { Router } from 'express'
 import { Passport } from 'passport'
+import util from './util'
 
 const routes = (config: IConfigure, router: Router, passport: Passport, user: User) => {
 	router.post(
@@ -27,13 +27,13 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 			// Success handler
 			user
 				.createSession(req.user._id, 'local', req)
-				.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
+				.then((mySession: {}) => res.status(200).json(mySession), next)
 	)
 
 	router.post('/refresh', passport.authenticate('bearer', { session: false }), (req, res, next) =>
 		user
 			.refreshSession(req.user.key)
-			.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
+			.then((mySession: {}) => res.status(200).json(mySession), next)
 	)
 
 	router.post('/logout', (req, res, next) => {
@@ -93,11 +93,11 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				if (config.getItem('security.loginOnRegistration')) {
 					return user
 						.createSession(newUser._id, 'local', req.ip)
-						.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
+						.then((mySession: {}) => res.status(200).json(mySession), next)
 				}
 				return res.status(201).json({ success: 'User created.' })
 			},
-			(err: string) => next(err)
+			next
 		)
 	})
 
@@ -106,7 +106,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 			.forgotPassword(req.body.email, req)
 			.then(
 				() => res.status(200).json({ success: 'Password recovery email sent.' }),
-				(err: string) => next(err)
+				next
 			)
 	)
 
@@ -116,11 +116,11 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				if (config.getItem('security.loginOnPasswordReset')) {
 					return user
 						.createSession(currentUser._id, 'local', req.ip)
-						.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
+						.then((mySession: {}) => res.status(200).json(mySession), next)
 				}
 				return res.status(200).json({ success: 'Password successfully reset.' })
 			},
-			(err: string) => next(err)
+			next
 		)
 	})
 
@@ -132,7 +132,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				() => {
 					res.status(200).json({ success: 'password changed' })
 				},
-				(err: string) => next(err)
+				next
 			)
 		}
 	)
@@ -147,7 +147,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				.then(
 					() =>
 						res.status(200).json({ success: `${util.capitalizeFirstLetter(provider)} unlinked` }),
-					(err: string) => next(err)
+					next
 				)
 		}
 	)
@@ -190,7 +190,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 					err
 						? res.status(409).json({ error: 'Username already in use' })
 						: res.status(200).json({ ok: true }),
-				(err: string) => next(err)
+				next
 			)
 	})
 
@@ -209,7 +209,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				err
 					? res.status(409).json({ error: 'Email already in use' })
 					: res.status(200).json({ ok: true }),
-			(err: string) => next(err)
+			next
 		)
 	})
 
@@ -221,7 +221,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 				() => {
 					res.status(200).json({ ok: true, success: 'Email changed' })
 				},
-				(err: string) => next(err)
+				next
 			)
 		}
 	)

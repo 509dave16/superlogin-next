@@ -1,8 +1,8 @@
-import util from './util'
-import LocalStrategy from 'passport-local'
-import Bearer from 'passport-http-bearer-sl'
-import { PassportStatic } from 'passport'
 import { Request } from 'express'
+import { PassportStatic } from 'passport'
+import Bearer from 'passport-http-bearer-sl'
+import LocalStrategy from 'passport-local'
+import util from './util'
 
 const BearerStrategy = Bearer.Strategy
 
@@ -112,9 +112,7 @@ const local = (config: IConfigure, passport: PassportStatic, user: User) => {
 						}
 						return undefined
 					},
-					(err: string) =>
-						// Database threw an error
-						done(err)
+					done
 				)
 			}
 		)

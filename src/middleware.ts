@@ -1,6 +1,6 @@
 // Contains middleware useful for securing your routes
-import { PassportStatic } from 'passport'
 import { RequestHandler } from 'express'
+import { PassportStatic } from 'passport'
 const middleware = (passport: PassportStatic) => {
 	const forbiddenError = {
 		error: 'Forbidden',
@@ -42,11 +42,7 @@ const middleware = (passport: PassportStatic) => {
 		let denied = true
 		const { roles } = req.user
 		if (roles && roles.length) {
-			for (let i = 0; i < possibleRoles.length; i += 1) {
-				if (roles.indexOf(possibleRoles[i]) !== -1) {
-					denied = false
-				}
-			}
+			possibleRoles.forEach(role => (denied = roles.indexOf(role) === -1))
 		}
 		if (denied) {
 			res.status(forbiddenError.status)
@@ -66,11 +62,7 @@ const middleware = (passport: PassportStatic) => {
 		if (!roles || !roles.length) {
 			denied = true
 		} else {
-			for (let i = 0; i < requiredRoles.length; i += 1) {
-				if (roles.indexOf(requiredRoles[i]) === -1) {
-					denied = true
-				}
-			}
+			requiredRoles.forEach(role => (denied = roles.indexOf(role) === -1))
 		}
 		if (denied) {
 			res.status(forbiddenError.status)

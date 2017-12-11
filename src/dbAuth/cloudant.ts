@@ -1,6 +1,5 @@
-import url from 'url'
-import BPromise from 'bluebird'
 import request from 'superagent'
+import url from 'url'
 import util from './../util'
 
 const getSecurityUrl = (db: PouchDB.Database & { name: string }) => {
@@ -28,72 +27,70 @@ const getAPIKey = async (db: PouchDB.Database & { name: string }) => {
 	}
 }
 
-const getSecurityCloudant = (db: PouchDB.Database & { name: string }) => {
+const getSecurityCloudant = async (db: PouchDB.Database & { name: string }) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(callback => {
-		request
-			.get(finalUrl)
-			//       .set(db.getHeaders())
-			.end(callback)
-	}).then((res: { text: string }) => Promise.resolve(JSON.parse(res.text)))
+	const res = await request.get(finalUrl)
+	return Promise.resolve(JSON.parse(res.text))
 }
 
-const putSecurityCloudant = (db: PouchDB.Database & { name: string }, doc: {}) => {
+const putSecurityCloudant = async (db: PouchDB.Database & { name: string }, doc: {}) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(callback => {
-		request
+	try {
+		const res = await request
 			.put(finalUrl)
 			//       .set(db.getHeaders())
 			.send(doc)
-			.end(callback)
-	}).then((res: { text: string }) => Promise.resolve(JSON.parse(res.text)))
+		return JSON.parse(res.text)
+	} catch (error) {
+		return Promise.reject(error)
+	}
 }
 
 // This is not needed with Cloudant
-const storeKey = () => Promise.resolve()
+const storeKey = async () => Promise.resolve()
 
 // This is not needed with Cloudant
-const removeKeys = () => Promise.resolve()
+const removeKeys = async () => Promise.resolve()
 
-const initSecurity = (
+const initSecurity = async (
 	db: PouchDB.Database & { name: string },
 	adminRoles: string[],
 	memberRoles: string[]
 ) => {
 	let changes = false
-	return db.get<ISecurityDoc>('_security').then(secDoc => {
-		if (!secDoc.admins) {
-			secDoc.admins = { names: [], roles: [] }
+	const secDoc = await db.get<ISecurityDoc>('_security')
+
+	if (!secDoc.admins) {
+		secDoc.admins = { names: [], roles: [] }
+	}
+	if (!secDoc.admins.roles) {
+		secDoc.admins.roles = []
+	}
+	if (!secDoc.members) {
+		secDoc.members = { names: [], roles: [] }
+	}
+	if (!secDoc.members.roles) {
+		secDoc.admins.roles = []
+	}
+	adminRoles.forEach((role: string) => {
+		if (secDoc.admins.roles.indexOf(role) === -1) {
+			changes = true
+			secDoc.admins.roles.push(role)
 		}
-		if (!secDoc.admins.roles) {
-			secDoc.admins.roles = []
-		}
-		if (!secDoc.members) {
-			secDoc.members = { names: [], roles: [] }
-		}
-		if (!secDoc.members.roles) {
-			secDoc.admins.roles = []
-		}
-		adminRoles.forEach((role: string) => {
-			if (secDoc.admins.roles.indexOf(role) === -1) {
-				changes = true
-				secDoc.admins.roles.push(role)
-			}
-		})
-		memberRoles.forEach((role: string) => {
-			if (secDoc.members.roles.indexOf(role) === -1) {
-				changes = true
-				secDoc.members.roles.push(role)
-			}
-		})
-		if (changes) {
-			return putSecurityCloudant(db, secDoc)
-		}
-		return Promise.resolve(false)
 	})
+	memberRoles.forEach((role: string) => {
+		if (secDoc.members.roles.indexOf(role) === -1) {
+			changes = true
+			secDoc.members.roles.push(role)
+		}
+	})
+	if (changes) {
+		return putSecurityCloudant(db, secDoc)
+	}
+	return false
 }
 
-const authorizeKeys = (
+const authorizeKeys = async (
 	user_id: string,
 	db: PouchDB.Database & { name: string },
 	keys: string[],
@@ -117,37 +114,36 @@ const authorizeKeys = (
 		keysObj = keys
 	}
 	// Pull the current _security doc
-	return getSecurityCloudant(db).then((secDoc: { _id: string; cloudant: {} }) => {
-		if (!secDoc._id) {
-			secDoc._id = '_security'
-		}
-		if (!secDoc.cloudant) {
-			secDoc.cloudant = {}
-		}
-		Object.keys(keysObj).forEach(key => (secDoc.cloudant[key] = keysObj[key]))
-		return putSecurityCloudant(db, secDoc)
-	})
+	const secDoc = await getSecurityCloudant(db)
+	if (!secDoc._id) {
+		secDoc._id = '_security'
+	}
+	if (!secDoc.cloudant) {
+		secDoc.cloudant = {}
+	}
+	Object.keys(keysObj).forEach(key => (secDoc.cloudant[key] = keysObj[key]))
+	return putSecurityCloudant(db, secDoc)
 }
 
-const deauthorizeKeys = (db: PouchDB.Database & { name: string }, keys: string[]) => {
+const deauthorizeKeys = async (db: PouchDB.Database & { name: string }, keys: string[]) => {
 	// cast keys to an Array
 	keys = util.toArray(keys)
-	return getSecurityCloudant(db).then((secDoc: { cloudant: {} }) => {
-		let changes = false
-		if (!secDoc.cloudant) {
-			return Promise.resolve(false)
-		}
-		keys.forEach(key => {
-			if (secDoc.cloudant[key]) {
-				changes = true
-				delete secDoc.cloudant[key]
-			}
-		})
-		if (changes) {
-			return putSecurityCloudant(db, secDoc)
-		}
+	const secDoc = await getSecurityCloudant(db)
+
+	let changes = false
+	if (!secDoc.cloudant) {
 		return Promise.resolve(false)
+	}
+	keys.forEach(key => {
+		if (secDoc.cloudant[key]) {
+			changes = true
+			delete secDoc.cloudant[key]
+		}
 	})
+	if (changes) {
+		return putSecurityCloudant(db, secDoc)
+	}
+	return false
 }
 
 export default {

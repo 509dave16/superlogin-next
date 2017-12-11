@@ -35,7 +35,7 @@ const FileAdapter = (config: IConfigure): IAdapter => {
 			.catch(() => false)
 	}
 
-	const deleteKeys = (keys: string[]) => {
+	const deleteKeys = async (keys: string[]) => {
 		if (!(keys instanceof Array)) {
 			keys = [keys]
 		}
@@ -48,9 +48,7 @@ const FileAdapter = (config: IConfigure): IAdapter => {
 		)
 	}
 
-	const quit = () => {
-		return Promise.resolve()
-	}
+	const quit = async () => Promise.resolve()
 
 	const _removeExpired = () => {
 		// open all files and check session expire date

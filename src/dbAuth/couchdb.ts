@@ -9,7 +9,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			body: doc
 		})
 
-	const storeKey = (
+	const storeKey = async (
 		username: string,
 		key: string,
 		password: string,
@@ -32,10 +32,9 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			expires,
 			roles
 		}
-		return couchAuthDB.upsert(newKey._id, () => newKey).then(() => {
-			newKey._id = key
-			return Promise.resolve(newKey)
-		})
+		await couchAuthDB.upsert(newKey._id, () => newKey)
+		newKey._id = key
+		return newKey
 	}
 
 	const removeKeys = async (keys: string[]) => {
@@ -72,42 +71,42 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		}
 	}
 
-	const initSecurity = (
+	const initSecurity = async (
 		db: PouchDB.Database & { name: string },
 		adminRoles: string[],
 		memberRoles: string[]
 	) => {
 		let changes = false
-		return db.get<ISecurityDoc>('_security').then(secDoc => {
-			if (!secDoc.admins) {
-				secDoc.admins = { names: [], roles: [] }
+		const secDoc = await db.get<ISecurityDoc>('_security')
+
+		if (!secDoc.admins) {
+			secDoc.admins = { names: [], roles: [] }
+		}
+		if (!secDoc.admins.roles) {
+			secDoc.admins.roles = []
+		}
+		if (!secDoc.members) {
+			secDoc.members = { names: [], roles: [] }
+		}
+		if (!secDoc.members.roles) {
+			secDoc.admins.roles = []
+		}
+		adminRoles.forEach(role => {
+			if (secDoc.admins.roles.indexOf(role) === -1) {
+				changes = true
+				secDoc.admins.roles.push(role)
 			}
-			if (!secDoc.admins.roles) {
-				secDoc.admins.roles = []
-			}
-			if (!secDoc.members) {
-				secDoc.members = { names: [], roles: [] }
-			}
-			if (!secDoc.members.roles) {
-				secDoc.admins.roles = []
-			}
-			adminRoles.forEach(role => {
-				if (secDoc.admins.roles.indexOf(role) === -1) {
-					changes = true
-					secDoc.admins.roles.push(role)
-				}
-			})
-			memberRoles.forEach(role => {
-				if (secDoc.members.roles.indexOf(role) === -1) {
-					changes = true
-					secDoc.members.roles.push(role)
-				}
-			})
-			if (changes) {
-				return putSecurityCouch(db, secDoc)
-			}
-			return Promise.resolve(false)
 		})
+		memberRoles.forEach(role => {
+			if (secDoc.members.roles.indexOf(role) === -1) {
+				changes = true
+				secDoc.members.roles.push(role)
+			}
+		})
+		if (changes) {
+			return putSecurityCouch(db, secDoc)
+		}
+		return Promise.resolve(false)
 	}
 
 	const authorizeKeys = async (
@@ -192,7 +191,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 
 declare global {
 	interface IDBAdapter {
-		initSecurity(db: any, adminRoles: string[], memberRoles: string[]): void
+		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): void
 		authorizeKeys(
 			user_id: string,
 			db: PouchDB.Database & { name: string },

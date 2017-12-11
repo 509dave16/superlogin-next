@@ -46,11 +46,12 @@ const RedisAdapter = (config: IConfigure): IAdapter => {
 
 	redisClient.on('connect', () => console.log('Redis is ready'))
 
-	const storeKey = (key: string, life: {}, data: {}) => redisClient.psetexAsync(key, life, data)
+	const storeKey = async (key: string, life: {}, data: {}) =>
+		redisClient.psetexAsync(key, life, data)
 
-	const deleteKeys = (keys: string[]) => redisClient.delAsync(keys)
+	const deleteKeys = async (keys: string[]) => redisClient.delAsync(keys)
 
-	const getKey = (key: string) => redisClient.getAsync(key)
+	const getKey = async (key: string) => redisClient.getAsync(key)
 
 	const quit = () => redisClient.quit()
 

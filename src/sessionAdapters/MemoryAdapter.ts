@@ -1,9 +1,19 @@
 const MemoryAdapter = (): IAdapter => {
-	let _keys = {}
-	let _expires = {}
+	const _keys = {}
+	const _expires = {}
 	console.log('Memory Adapter loaded')
 
-	const storeKey = (key: string, life: number, data: {}) => {
+	const _removeExpired = () => {
+		const now = Date.now()
+		Object.keys(_expires).forEach(key => {
+			if (_expires[key] < now) {
+				delete _keys[key]
+				delete _expires[key]
+			}
+		})
+	}
+
+	const storeKey = async (key: string, life: number, data: {}) => {
 		const now = Date.now()
 		_keys[key] = data
 		_expires[key] = now + life
@@ -11,7 +21,7 @@ const MemoryAdapter = (): IAdapter => {
 		return Promise.resolve()
 	}
 
-	const getKey = (key: string) => {
+	const getKey = async (key: string) => {
 		const now = Date.now()
 		if (_keys[key] && _expires[key] > now) {
 			return Promise.resolve(_keys[key])
@@ -19,7 +29,7 @@ const MemoryAdapter = (): IAdapter => {
 		return Promise.resolve(false)
 	}
 
-	const deleteKeys = (keys: string[]) => {
+	const deleteKeys = async (keys: string[]) => {
 		if (!(keys instanceof Array)) {
 			keys = [keys]
 		}
@@ -31,18 +41,8 @@ const MemoryAdapter = (): IAdapter => {
 		return Promise.resolve(keys.length)
 	}
 
-	const quit = () => {
+	const quit = async () => {
 		return Promise.resolve()
-	}
-
-	const _removeExpired = () => {
-		const now = Date.now()
-		Object.keys(_expires).forEach(key => {
-			if (_expires[key] < now) {
-				delete _keys[key]
-				delete _expires[key]
-			}
-		})
 	}
 
 	return {

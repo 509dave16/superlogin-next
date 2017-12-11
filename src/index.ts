@@ -3,18 +3,19 @@ import express from 'express'
 import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
 
-import Configure from './configure'
-import User from './user'
-import Oauth from './oauth'
-import loadRoutes from './routes'
-import localConfig from './local'
-import Middleware from './middleware'
-import Mailer from './mailer'
-import util from './util'
 import defaultConfig from 'config/default.config'
 import defaultPassport from 'passport'
 import PouchUpsert from 'pouchdb-upsert'
+import Configure from './configure'
+import localConfig from './local'
+import Mailer from './mailer'
+import Middleware from './middleware'
+import Oauth from './oauth'
+import loadRoutes from './routes'
+import User from './user'
+import util from './util'
 
+// tslint:disable-next-line:no-var-requires
 const userDesignDocs = require('../designDocs/user-design')
 PouchDB.plugin(PouchUpsert)
 

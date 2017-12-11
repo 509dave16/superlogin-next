@@ -22,6 +22,7 @@ const defaultConfig = {
 		}
 	},
 	dbServer: {
+		// tslint:disable-next-line:no-http-string
 		protocol: 'http://',
 		host: 'localhost:5984',
 		designDocDir: join(__dirname, '../../designDocs'),

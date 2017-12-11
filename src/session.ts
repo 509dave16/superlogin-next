@@ -1,7 +1,7 @@
-import util from './util'
-import RedisAdapter from './sessionAdapters/RedisAdapter'
-import MemoryAdapter from './sessionAdapters/MemoryAdapter'
 import FileAdapter from './sessionAdapters/FileAdapter'
+import MemoryAdapter from './sessionAdapters/MemoryAdapter'
+import RedisAdapter from './sessionAdapters/RedisAdapter'
+import util from './util'
 
 const tokenPrefix = 'token'
 
@@ -17,7 +17,7 @@ const Session = (config: IConfigure) => {
 	}
 
 	return {
-		confirmToken: (keys: string | string[], password: string) => {
+		confirmToken: async (keys: string | string[], password: string) => {
 			const entries: string[] = []
 			if (!Array.isArray(keys)) {
 				keys = [keys]
@@ -25,7 +25,7 @@ const Session = (config: IConfigure) => {
 			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
 			return adapter.deleteKeys(entries)
 		},
-		deleteTokens: (keys: string | string[]) => {
+		deleteTokens: async (keys: string | string[]) => {
 			const entries: string[] = []
 			if (!Array.isArray(keys)) {
 				keys = [keys]
@@ -33,8 +33,8 @@ const Session = (config: IConfigure) => {
 			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
 			return adapter.deleteKeys(entries)
 		},
-		fetchToken: (key: string) =>
-			adapter.getKey(`${tokenPrefix}:${key}`).then(result => Promise.resolve(JSON.parse(result))),
+		fetchToken: async (key: string) =>
+			adapter.getKey(`${tokenPrefix}:${key}`).then(result => JSON.parse(result)),
 		storeToken: async (token: ISession) => {
 			if (!token.password && token.salt && token.derived_key) {
 				await adapter.storeKey(
@@ -60,12 +60,8 @@ const Session = (config: IConfigure) => {
 			delete token.derived_key
 			return Promise.resolve(token)
 		},
-		quit: () => adapter.quit()
+		quit: async () => adapter.quit()
 	}
 }
 
 export default Session
-
-declare global {
-	type Session = typeof Session
-}

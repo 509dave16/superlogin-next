@@ -1,9 +1,9 @@
-import fs from 'fs'
-import path from 'path'
 import ejs from 'ejs'
+import { Request, RequestHandler, Response, Router } from 'express'
+import fs from 'fs'
+import { Passport, Strategy as StrategyType } from 'passport'
+import path from 'path'
 import util from './util'
-import { Passport, Strategy } from 'passport'
-import { Request, RequestHandler, Router, Response } from 'express'
 
 const stateRequired = ['google', 'linkedin']
 
@@ -109,43 +109,34 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 	// Function to initialize a session following authentication from a socialAuth provider
 	const initSession: RequestHandler = (req, res, next) => {
 		const provider = getProvider(req.path)
-		return user
-			.createSession(req.user._id, provider, req)
-			.then((mySession: {}) =>
-				Promise.resolve({
-					error: null,
-					session: mySession,
-					link: null
-				})
-			)
-			.then(
-				(results: {}) => {
-					let template
-					if (config.getItem('testMode.oauthTest')) {
-						template = fs.readFileSync(
-							path.join(__dirname, '../templates/oauth/auth-callback-test.ejs'),
-							'utf8'
-						)
-					} else {
-						template = fs.readFileSync(
-							path.join(__dirname, '../templates/oauth/auth-callback.ejs'),
-							'utf8'
-						)
-					}
-					const html = ejs.render(template, results)
-					res.status(200).send(html)
-				},
-				(err: string) => next(err)
-			)
+		return user.createSession(req.user._id, provider, req).then((session: {}) => {
+			const results = {
+				error: null,
+				session,
+				link: null
+			}
+			let template
+			if (config.getItem('testMode.oauthTest')) {
+				template = fs.readFileSync(
+					path.join(__dirname, '../templates/oauth/auth-callback-test.ejs'),
+					'utf8'
+				)
+			} else {
+				template = fs.readFileSync(
+					path.join(__dirname, '../templates/oauth/auth-callback.ejs'),
+					'utf8'
+				)
+			}
+			const html = ejs.render(template, results)
+			res.status(200).send(html)
+		}, next)
 	}
 
 	// Function to initialize a session following authentication from a socialAuth provider
-	const initTokenSession: RequestHandler = (req, res, next) => {
+	const initTokenSession: RequestHandler = async (req, res, next) => {
 		const provider = getProviderToken(req.path)
-		return user
-			.createSession(req.user._id, provider, req)
-			.then((mySession: {}) => Promise.resolve(mySession))
-			.then((session: {}) => res.status(200).json(session), (err: string) => next(err))
+		const session = await user.createSession(req.user._id, provider, req)
+		return res.status(200).json(session)
 	}
 
 	// Called after an account has been succesfully linked
@@ -273,7 +264,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 	}
 
 	// A shortcut to register OAuth2 providers that follow the exact accessToken, refreshToken pattern.
-	const registerOAuth2 = (providerName: string, Strategy: Strategy) => {
+	const registerOAuth2 = (providerName: string, Strategy: StrategyType) => {
 		registerProvider(providerName, (credentials, providerPassport, providerAuthHandler) => {
 			providerPassport.use(
 				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
@@ -285,7 +276,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 
 	// Registers a provider that accepts an access_token directly from the client, skipping the popup window and callback
 	// This is for supporting Cordova, native IOS and Android apps, as well as other devices
-	const registerTokenProvider = (providerName: string, Strategy: Strategy) => {
+	const registerTokenProvider = (providerName: string, Strategy: StrategyType) => {
 		providerName = providerName.toLowerCase()
 		const configRef = `providers.${providerName}`
 		if (config.getItem(`${configRef}.credentials`)) {

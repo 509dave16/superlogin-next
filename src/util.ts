@@ -1,9 +1,9 @@
 import BPromise from 'bluebird'
-import URLSafeBase64 from 'urlsafe-base64'
-import uuid from 'uuid'
 import pwd from 'couch-pwd'
 import crypto from 'crypto'
 import { Request } from 'express'
+import URLSafeBase64 from 'urlsafe-base64'
+import uuid from 'uuid'
 
 export const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, new Buffer(16)))
 
@@ -13,7 +13,7 @@ export const hashToken = (token: string) =>
 		.update(token)
 		.digest('hex')
 
-export const hashPassword = (password: string) =>
+export const hashPassword = async (password: string) =>
 	new Promise<{ salt: string; derived_key: string }>((resolve, reject) => {
 		pwd.hash(password, (err: string, salt: string, hash: string) => {
 			if (err) {
@@ -26,7 +26,7 @@ export const hashPassword = (password: string) =>
 		})
 	})
 
-export const verifyPassword = (
+export const verifyPassword = async (
 	hashObj: { iterations?: string; salt?: string; derived_key?: string },
 	password: string
 ) => {
@@ -39,12 +39,11 @@ export const verifyPassword = (
 	if (!salt || !derived_key) {
 		return Promise.reject(false)
 	}
-	return getHash(password, salt).then((hash: string) => {
-		if (hash === derived_key) {
-			return Promise.resolve(true)
-		}
-		return Promise.reject(false)
-	})
+	const hash = await getHash(password, salt)
+	if (hash === derived_key) {
+		return Promise.resolve(true)
+	}
+	return Promise.reject(false)
 }
 
 export const getDBURL = (db: {
@@ -125,12 +124,12 @@ export const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { view
 	if (!providers) {
 		return ddoc
 	}
-	const ddocTemplate =
-		'function(doc) => {\n' +
-		'  if(doc.%PROVIDER% && doc.%PROVIDER%.profile) => {\n' +
-		'    emit(doc.%PROVIDER%.profile.id, null);\n' +
-		'  }\n' +
-		'}'
+	const ddocTemplate = `function(doc) => {\n
+		if(doc.%PROVIDER% && doc.%PROVIDER%.profile) => {\n
+			emit(doc.%PROVIDER%.profile.id, null);\n
+		}\n
+	}
+	`
 	Object.keys(providers).forEach(provider => {
 		ddoc.auth.views[provider] = ddocTemplate.replace(new RegExp('%PROVIDER%', 'g'), provider)
 	})
@@ -138,8 +137,8 @@ export const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { view
 }
 
 // Capitalizes the first letter of a string
-export const capitalizeFirstLetter = (string: string) =>
-	string.charAt(0).toUpperCase() + string.slice(1)
+export const capitalizeFirstLetter = (value: string) =>
+	value.charAt(0).toUpperCase() + value.slice(1)
 
 /**
  * Access nested JavaScript objects with string key
@@ -221,11 +220,14 @@ export const delObjectRef = (obj: {}, str: string) => {
  * @return {array} resulting array
  */
 
-export const arrayUnion = (a: any[], b: string) => {
+// tslint:disable-next-line:no-any
+export const arrayUnion = (a: {}[], b: string): any[] => {
 	const result = a.concat(b)
 	for (let i = 0; i < result.length; i += 1) {
 		for (let j = i + 1; j < result.length; j += 1) {
-			if (result[i] === result[j]) result.splice((j -= 1), 1)
+			if (result[i] === result[j]) {
+				result.splice((j -= 1), 1)
+			}
 		}
 	}
 	return result

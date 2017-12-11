@@ -1,7 +1,8 @@
 {
 	"name": "superlogin",
 	"version": "0.6.1",
-	"description": "Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
+	"description":
+		"Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
 	"main": "./lib/index.js",
 	"repository": {
 		"type": "git",
@@ -11,7 +12,8 @@
 		"node": ">=4.0.0"
 	},
 	"scripts": {
-		"compile": "babel src -d lib",
+		"compile": "babel -x '.ts' src -d lib",
+		"precompile": "rimraf lib",
 		"lint": "yarn tsc && tslint -p tsconfig.json -c tslint.json -t stylish --fix",
 		"prettier": "prettier --write 'src/**/*.js'",
 		"test": "gulp"

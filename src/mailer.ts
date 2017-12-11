@@ -1,7 +1,7 @@
-import fs from 'fs'
 import BPromise from 'bluebird'
-import nodemailer, { Transporter } from 'nodemailer'
 import ejs, { Data } from 'ejs'
+import fs from 'fs'
+import nodemailer, { Transporter } from 'nodemailer'
 import stubTransport from 'nodemailer-stub-transport'
 
 const mailer = (config: IConfigure): IMailer => {

@@ -1,11 +1,11 @@
-import url from 'url'
+import DBAuth from 'dbauth'
+import { EventEmitter } from 'events'
+import merge from 'lodash.merge'
 import Model from 'sofa-model'
+import url from 'url'
+import cloudant from './dbauth/cloudant'
 import Session from './session'
 import util from './util'
-import DBAuth from 'dbauth'
-import merge from 'lodash.merge'
-import cloudant from './dbauth/cloudant'
-import { EventEmitter } from 'events'
 
 // regexp from https://github.com/angular/angular.js/blob/master/src/ng/directive/inupsert.js#L4
 const EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
@@ -20,8 +20,8 @@ const user = (
 ) => {
 	const dbAuth = DBAuth(config, userDB, couchAuthDB)
 	const session = Session(config)
-	const onCreateActions: Array<(userDoc: IUserDoc, provider: string) => Promise<IUserDoc>> = []
-	const onLinkActions: Array<(userDoc: IUserDoc, provider: string) => Promise<IUserDoc>> = []
+	const onCreateActions: ((userDoc: IUserDoc, provider: string) => Promise<IUserDoc>)[] = []
+	const onLinkActions: ((userDoc: IUserDoc, provider: string) => Promise<IUserDoc>)[] = []
 
 	// Token valid for 24 hours by default
 	// Forget password token life
@@ -30,6 +30,144 @@ const user = (
 	const sessionLife = config.getItem('security.sessionLife') || 86400
 
 	const emailUsername = config.getItem('local.emailUsername')
+
+	const logActivity = async (
+		user_id: string,
+		action: string,
+		provider: string,
+		req: { ip: string },
+		userDoc: IUserDoc,
+		saveDoc?: boolean
+	) => {
+		const logSize = config.getItem('security.userActivityLogSize')
+		if (!logSize) {
+			return Promise.resolve(userDoc)
+		}
+		let theUser = userDoc
+		if (!theUser) {
+			if (saveDoc !== false) {
+				saveDoc = true
+			}
+			theUser = await userDB.get<IUserDoc>(user_id)
+		}
+		userDoc = theUser
+		if (!userDoc.activity || !Array.isArray(userDoc.activity)) {
+			userDoc.activity = []
+		}
+		const entry = {
+			timestamp: new Date().toISOString(),
+			action,
+			provider,
+			ip: req.ip
+		}
+		userDoc.activity.unshift(entry)
+		while (userDoc.activity.length > logSize) {
+			userDoc.activity.pop()
+		}
+		if (saveDoc) {
+			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
+		}
+		return Promise.resolve(userDoc)
+	}
+
+	const logoutUserSessions = async (userDoc: IUserDoc, op: string, currentSession?: string) => {
+		try {
+			// When op is 'other' it will logout all sessions except for the specified 'currentSession'
+			let sessions: string[] = []
+			if (op === 'all' || op === 'other') {
+				sessions = util.getSessions(userDoc)
+			} else if (op === 'expired') {
+				sessions = util.getExpiredSessions(userDoc, Date.now())
+			}
+			if (op === 'other' && currentSession) {
+				// Remove the current session from the list of sessions we are going to delete
+				const index = sessions.indexOf(currentSession)
+				if (index > -1) {
+					sessions.splice(index, 1)
+				}
+			}
+			if (sessions.length) {
+				// Delete the sessions from our session store
+				await session.deleteTokens(sessions)
+				// Remove the keys from our couchDB auth database
+				dbAuth.removeKeys(sessions)
+				// Deauthorize keys from each personal database
+				await dbAuth.deauthorizeUser(userDoc, sessions)
+				if (op === 'expired' || op === 'other') {
+					sessions.forEach(s => delete userDoc.session[s])
+				}
+			}
+			if (op === 'all') {
+				delete userDoc.session
+			}
+			return Promise.resolve(userDoc)
+		} catch (error) {
+			console.log('error logging out user sessions!', error)
+			return Promise.resolve(userDoc)
+		}
+	}
+
+	const changePassword = async (
+		user_id: string,
+		newPassword: string,
+		userDoc: IUserDoc,
+		req: { ip: string }
+	) => {
+		req = req || {}
+		let changePwUser: IUserDoc
+		let doc = userDoc
+		try {
+			if (!userDoc) {
+				doc = await userDB.get<IUserDoc>(user_id)
+			}
+		} catch (error) {
+			return Promise.reject({
+				error: 'User not found',
+				status: 404
+			})
+		}
+		changePwUser = doc
+		const hash = await util.hashPassword(newPassword)
+
+		if (!changePwUser.local) {
+			changePwUser.local = {}
+		}
+		changePwUser.local.salt = hash.salt
+		changePwUser.local.derived_key = hash.derived_key
+		if (changePwUser.providers.indexOf('local') === -1) {
+			changePwUser.providers.push('local')
+		}
+		const finalUser = await logActivity(
+			changePwUser._id,
+			'changed password',
+			'local',
+			req,
+			changePwUser
+		)
+		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+		return emitter.emit('password-change', changePwUser)
+	}
+
+	const logoutOthers = async (session_id: string) => {
+		let logoutUserDoc: IUserDoc
+		let finalUser: IUserDoc | undefined
+		const results = await userDB.query<IUserDoc>('auth/session', {
+			key: session_id,
+			include_docs: true
+		})
+
+		if (results.rows.length) {
+			logoutUserDoc = results.rows[0].doc as IUserDoc
+			if (logoutUserDoc.session && logoutUserDoc.session[session_id]) {
+				finalUser = await logoutUserSessions(logoutUserDoc, 'other', session_id)
+			}
+		}
+
+		if (finalUser) {
+			return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
+		}
+		return Promise.resolve(false)
+	}
 
 	const addUserDBs = async (newUser: IUserDoc) => {
 		// Add personal DBs
@@ -112,7 +250,7 @@ const user = (
 	const generateUsername = async (base: string) => {
 		base = base.toLowerCase()
 		const entries: string[] = []
-		let finalName: string
+		let finalName = ''
 		const results = await userDB.allDocs({
 			startkey: base,
 			endkey: `${base}\uffff`,
@@ -122,9 +260,7 @@ const user = (
 		if (results.rows.length === 0) {
 			return Promise.resolve(base)
 		}
-		for (let i = 0; i < results.rows.length; i += 1) {
-			entries.push(results.rows[i].id)
-		}
+		results.rows.forEach(({ id }) => entries.push(id))
 		if (entries.indexOf(base) === -1) {
 			return Promise.resolve(base)
 		}
@@ -138,25 +274,23 @@ const user = (
 		return finalName
 	}
 
-	const validateUsername = (username: string) => {
+	const validateUsername = async (username: string) => {
 		if (!username) {
 			return Promise.resolve()
 		}
 		if (!username.match(USER_REGEXP)) {
 			return Promise.resolve('Invalid username')
 		}
-		return userDB.query('auth/username', { key: username }).then(
-			result => {
-				if (result.rows.length === 0) {
-					// Pass!
-					return Promise.resolve()
-				}
+		try {
+			const result = await userDB.query('auth/username', { key: username })
+			if (result.rows.length === 0) {
+				// Pass!
 				return Promise.resolve()
-			},
-			err => {
-				throw new Error(err)
 			}
-		)
+			return Promise.resolve()
+		} catch (error) {
+			throw new Error(error)
+		}
 	}
 
 	const validateEmail = async (email: string) => {
@@ -346,7 +480,7 @@ const user = (
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
 			finalUserModel = Object.assign({}, userModel, config.getItem('userModel'))
-			finalUserModel.whitelist = whitelist ? whitelist : finalUserModel.whitelist
+			finalUserModel.whitelist = whitelist || finalUserModel.whitelist
 		}
 		const UserModel = new Model(finalUserModel)
 		const u = new UserModel(form)
@@ -354,7 +488,7 @@ const user = (
 		return u
 			.process()
 			.then(
-				(result: typeof newUser) => {
+				async (result: typeof newUser) => {
 					newUser = result
 					if (emailUsername) {
 						newUser._id = newUser.email
@@ -368,14 +502,14 @@ const user = (
 					}
 					return util.hashPassword(newUser.password)
 				},
-				(err: string) =>
+				async (err: string) =>
 					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
 			)
-			.then((hash: { salt: string; derived_key: string }) => {
+			.then(async (hash: { salt: string; derived_key: string }) => {
 				// Store password hash
 				newUser.local = {}
 				newUser.local.salt = hash.salt
@@ -389,12 +523,12 @@ const user = (
 				}
 				return addUserDBs(newUser)
 			})
-			.then((nU: IUserDoc) => logActivity(nU._id, 'signup', 'local', req, nU))
-			.then((nU: IUserDoc) => processTransformations(onCreateActions, nU, 'local'))
-			.then((finalNewUser: IUserDoc) =>
+			.then(async (nU: IUserDoc) => logActivity(nU._id, 'signup', 'local', req, nU))
+			.then(async (nU: IUserDoc) => processTransformations(onCreateActions, nU, 'local'))
+			.then(async (finalNewUser: IUserDoc) =>
 				userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
 			)
-			.then((result: IUserDoc) => {
+			.then(async (result: IUserDoc) => {
 				newUser._rev = result.rev as string
 				if (!config.getItem('local.sendConfirmEmail')) {
 					return Promise.resolve()
@@ -404,7 +538,7 @@ const user = (
 					user: newUser
 				})
 			})
-			.then(() => {
+			.then(async () => {
 				emitter.emit('signup', newUser, 'local')
 				return Promise.resolve(newUser)
 			})
@@ -436,6 +570,7 @@ const user = (
 				userDoc = results.rows[0].doc as IUserDoc
 			} else {
 				newAccount = true
+				// tslint:disable-next-line:no-object-literal-type-assertion
 				userDoc = {} as IUserDoc
 				userDoc[provider] = {}
 				if (profile.emails) {
@@ -661,13 +796,7 @@ const user = (
 		newToken = token
 		newToken.provider = provider
 		await session.storeToken(newToken)
-		await dbAuth.storeKey(
-			user_id,
-			newToken.key,
-			password,
-			newToken.expires,
-			createSessionUser.roles
-		)
+		dbAuth.storeKey(user_id, newToken.key, password, newToken.expires, createSessionUser.roles)
 
 		// authorize the new session across all dbs
 		if (!!createSessionUser.personalDBs) {
@@ -691,7 +820,9 @@ const user = (
 		createSessionUser.session[newToken.key] = newSession
 		// Clear any failed login attempts
 		if (provider === 'local') {
-			if (!createSessionUser.local) createSessionUser.local = {}
+			if (!createSessionUser.local) {
+				createSessionUser.local = {}
+			}
 			createSessionUser.local.failedLoginAttempts = 0
 			delete createSessionUser.local.lockedUntil
 		}
@@ -763,45 +894,6 @@ const user = (
 		return !!loginUser.local.lockedUntil
 	}
 
-	const logActivity = async (
-		user_id: string,
-		action: string,
-		provider: string,
-		req: { ip: string },
-		userDoc: IUserDoc,
-		saveDoc?: boolean
-	) => {
-		const logSize = config.getItem('security.userActivityLogSize')
-		if (!logSize) {
-			return Promise.resolve(userDoc)
-		}
-		let theUser = userDoc
-		if (!theUser) {
-			if (saveDoc !== false) {
-				saveDoc = true
-			}
-			theUser = await userDB.get<IUserDoc>(user_id)
-		}
-		userDoc = theUser
-		if (!userDoc.activity || !Array.isArray(userDoc.activity)) {
-			userDoc.activity = []
-		}
-		const entry = {
-			timestamp: new Date().toISOString(),
-			action,
-			provider,
-			ip: req.ip
-		}
-		userDoc.activity.unshift(entry)
-		while (userDoc.activity.length > logSize) {
-			userDoc.activity.pop()
-		}
-		if (saveDoc) {
-			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
-		}
-		return Promise.resolve(userDoc)
-	}
-
 	const refreshSession = async (key: string) => {
 		let newSession: ISession
 		const oldToken = await session.fetchToken(key)
@@ -835,21 +927,21 @@ const user = (
 		return passwordResetForm
 			.validate()
 			.then(
-				() => {
+				async () => {
 					const tokenHash = util.hashToken(form.token)
 					return userDB.query('auth/passwordReset', {
 						key: tokenHash,
 						include_docs: true
 					})
 				},
-				(err: string) =>
+				async (err: string) =>
 					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
 			)
-			.then((results: { rows: { doc: IUserDoc }[] }) => {
+			.then(async (results: { rows: { doc: IUserDoc }[] }) => {
 				if (!results.rows.length) {
 					return Promise.reject({ status: 400, error: 'Invalid token' })
 				}
@@ -859,7 +951,7 @@ const user = (
 				}
 				return util.hashPassword(form.password)
 			})
-			.then((hash: ISession) => {
+			.then(async (hash: ISession) => {
 				if (!resetUser.local) {
 					resetUser.local = {}
 				}
@@ -871,24 +963,24 @@ const user = (
 				// logout user completely
 				return logoutUserSessions(resetUser, 'all')
 			})
-			.then((userDoc: IUserDoc) => {
+			.then(async (userDoc: IUserDoc) => {
 				resetUser = userDoc
 				delete resetUser.forgotPassword
 				return logActivity(resetUser._id, 'reset password', 'local', req, resetUser)
 			})
-			.then((finalUser: IUserDoc) =>
+			.then(async (finalUser: IUserDoc) =>
 				userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
 					delete oldUser.forgotPassword
 					return merge({}, oldUser, finalUser)
 				})
 			)
-			.then(() => {
+			.then(async () => {
 				emitter.emit('password-reset', resetUser)
 				return Promise.resolve(resetUser)
 			})
 	}
 
-	const changePasswordSecure = (
+	const changePasswordSecure = async (
 		user_id: string,
 		form: { newPassword: string; currentPassword: string },
 		req: { ip: string; user: { key: string } }
@@ -900,16 +992,16 @@ const user = (
 		return changePasswordForm
 			.validate()
 			.then(
-				() => userDB.get(user_id),
-				(err: string) =>
+				async () => userDB.get(user_id),
+				async (err: string) =>
 					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
 			)
-			.then(() => userDB.get(user_id))
-			.then((userDoc: IUserDoc) => {
+			.then(async () => userDB.get(user_id))
+			.then(async (userDoc: IUserDoc) => {
 				changePwUser = userDoc
 				if (changePwUser.local && changePwUser.local.salt && changePwUser.local.derived_key) {
 					// Password is required
@@ -925,8 +1017,8 @@ const user = (
 				return Promise.resolve()
 			})
 			.then(
-				() => changePassword(changePwUser._id, form.newPassword, changePwUser, req),
-				(err: string) =>
+				async () => changePassword(changePwUser._id, form.newPassword, changePwUser, req),
+				async (err: string) =>
 					Promise.reject(
 						err || {
 							error: 'Password change failed',
@@ -935,53 +1027,12 @@ const user = (
 						}
 					)
 			)
-			.then(() => {
+			.then(async () => {
 				if (req.user && req.user.key) {
 					return logoutOthers(req.user.key)
 				}
 				return Promise.resolve()
 			})
-	}
-
-	const changePassword = async (
-		user_id: string,
-		newPassword: string,
-		userDoc: IUserDoc,
-		req: { ip: string }
-	) => {
-		req = req || {}
-		let changePwUser: IUserDoc
-		let doc = userDoc
-		try {
-			if (!userDoc) {
-				doc = await userDB.get<IUserDoc>(user_id)
-			}
-		} catch (error) {
-			Promise.reject({
-				error: 'User not found',
-				status: 404
-			})
-		}
-		changePwUser = doc
-		const hash = await util.hashPassword(newPassword)
-
-		if (!changePwUser.local) {
-			changePwUser.local = {}
-		}
-		changePwUser.local.salt = hash.salt
-		changePwUser.local.derived_key = hash.derived_key
-		if (changePwUser.providers.indexOf('local') === -1) {
-			changePwUser.providers.push('local')
-		}
-		const finalUser = await logActivity(
-			changePwUser._id,
-			'changed password',
-			'local',
-			req,
-			changePwUser
-		)
-		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-		return emitter.emit('password-change', changePwUser)
 	}
 
 	const forgotPassword = async (email: string, req: { ip: string }) => {
@@ -1013,15 +1064,11 @@ const user = (
 			forgotPwUser
 		)
 		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-		await mailer.sendEmail(
-			'forgotPassword',
-			forgotPwUser.email || forgotPwUser.unverifiedEmail.email,
-			{
-				forgotPwUser,
-				req,
-				token
-			}
-		) // Send user the unhashed token
+		mailer.sendEmail('forgotPassword', forgotPwUser.email || forgotPwUser.unverifiedEmail.email, {
+			forgotPwUser,
+			req,
+			token
+		}) // Send user the unhashed token
 		emitter.emit('forgot-password', forgotPwUser)
 		return forgotPwUser.forgotPassword
 	}
@@ -1183,9 +1230,9 @@ const user = (
 	}
 
 	const logoutUser = async (user_id: string, session_id: string) => {
-		let logoutUser: IUserDoc
+		let logoutUserDoc: IUserDoc
 		if (user_id) {
-			logoutUser = await userDB.get<IUserDoc>(user_id)
+			logoutUserDoc = await userDB.get<IUserDoc>(user_id)
 		} else {
 			if (!session_id) {
 				return Promise.reject({
@@ -1205,17 +1252,17 @@ const user = (
 					status: 401
 				})
 			}
-			logoutUser = results.rows[0].doc as IUserDoc
-			user_id = logoutUser._id
-			await logoutUserSessions(logoutUser, 'all')
+			logoutUserDoc = results.rows[0].doc as IUserDoc
+			user_id = logoutUserDoc._id
+			await logoutUserSessions(logoutUserDoc, 'all')
 		}
 		emitter.emit('logout', user_id)
 		emitter.emit('logout-all', user_id)
-		return userDB.upsert(logoutUser._id, oldUser => merge({}, oldUser, logoutUser))
+		return userDB.upsert(logoutUserDoc._id, oldUser => merge({}, oldUser, logoutUserDoc))
 	}
 
 	const logoutSession = async (session_id: string) => {
-		let logoutUser: IUserDoc
+		let logoutUserDoc: IUserDoc
 		let startSessions = 0
 		let endSessions = 0
 		const results = await userDB.query<IUserDoc>('auth/session', {
@@ -1229,92 +1276,34 @@ const user = (
 				status: 401
 			})
 		}
-		logoutUser = results.rows[0].doc as IUserDoc
-		if (logoutUser.session) {
-			startSessions = Object.keys(logoutUser.session).length
-			if (logoutUser.session[session_id]) {
-				delete logoutUser.session[session_id]
+		logoutUserDoc = results.rows[0].doc as IUserDoc
+		if (logoutUserDoc.session) {
+			startSessions = Object.keys(logoutUserDoc.session).length
+			if (logoutUserDoc.session[session_id]) {
+				delete logoutUserDoc.session[session_id]
 			}
 		}
 		await session.deleteTokens(session_id)
-		await dbAuth.removeKeys(session_id)
-		if (logoutUser) {
-			await dbAuth.deauthorizeUser(logoutUser, session_id)
+		dbAuth.removeKeys(session_id)
+		if (logoutUserDoc) {
+			await dbAuth.deauthorizeUser(logoutUserDoc, session_id)
 		}
-		const finalUser = await logoutUserSessions(logoutUser, 'expired')
+		const finalUser = await logoutUserSessions(logoutUserDoc, 'expired')
 
-		logoutUser = finalUser
-		if (logoutUser.session) {
-			endSessions = Object.keys(logoutUser.session).length
+		logoutUserDoc = finalUser
+		if (logoutUserDoc.session) {
+			endSessions = Object.keys(logoutUserDoc.session).length
 		}
-		emitter.emit('logout', logoutUser._id)
+		emitter.emit('logout', logoutUserDoc._id)
 		if (startSessions !== endSessions) {
-			return userDB.upsert<IUserDoc>(logoutUser._id, oldUser => {
+			return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
 				if (oldUser.session) {
 					delete oldUser.session[session_id]
 				}
-				return merge({}, oldUser, logoutUser)
+				return merge({}, oldUser, logoutUserDoc)
 			})
 		}
 		return Promise.resolve(false)
-	}
-
-	const logoutOthers = async (session_id: string) => {
-		let logoutUser: IUserDoc
-		let finalUser: IUserDoc | undefined
-		const results = await userDB.query<IUserDoc>('auth/session', {
-			key: session_id,
-			include_docs: true
-		})
-
-		if (results.rows.length) {
-			logoutUser = results.rows[0].doc as IUserDoc
-			if (logoutUser.session && logoutUser.session[session_id]) {
-				finalUser = await logoutUserSessions(logoutUser, 'other', session_id)
-			}
-		}
-
-		if (finalUser) {
-			return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-		}
-		return Promise.resolve(false)
-	}
-
-	const logoutUserSessions = async (userDoc: IUserDoc, op: string, currentSession?: string) => {
-		try {
-			// When op is 'other' it will logout all sessions except for the specified 'currentSession'
-			let sessions: string[] = []
-			if (op === 'all' || op === 'other') {
-				sessions = util.getSessions(userDoc)
-			} else if (op === 'expired') {
-				sessions = util.getExpiredSessions(userDoc, Date.now())
-			}
-			if (op === 'other' && currentSession) {
-				// Remove the current session from the list of sessions we are going to delete
-				const index = sessions.indexOf(currentSession)
-				if (index > -1) {
-					sessions.splice(index, 1)
-				}
-			}
-			if (sessions.length) {
-				// Delete the sessions from our session store
-				await session.deleteTokens(sessions)
-				// Remove the keys from our couchDB auth database
-				await dbAuth.removeKeys(sessions)
-				// Deauthorize keys from each personal database
-				await dbAuth.deauthorizeUser(userDoc, sessions)
-				if (op === 'expired' || op === 'other') {
-					sessions.forEach(s => delete userDoc.session[s])
-				}
-			}
-			if (op === 'all') {
-				delete userDoc.session
-			}
-			return Promise.resolve(userDoc)
-		} catch (error) {
-			console.log('error logging out user sessions!', error)
-			return Promise.resolve(userDoc)
-		}
 	}
 
 	const remove = async (user_id: string, destroyDBs: boolean) => {
@@ -1343,7 +1332,8 @@ const user = (
 
 	const removeExpiredKeys = dbAuth.removeExpiredKeys.bind(dbAuth)
 
-	const confirmSession = (key: string, password: string) => session.confirmToken(key, password)
+	const confirmSession = async (key: string, password: string) =>
+		session.confirmToken(key, password)
 
 	const quitRedis = session.quit
 

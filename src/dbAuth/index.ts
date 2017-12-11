@@ -1,8 +1,7 @@
-import BPromise from 'bluebird'
 import PouchDB from 'pouchdb-node'
-import util from './../util'
 import seed from 'pouchdb-seed-design'
 import request from 'superagent'
+import util from './../util'
 import CloudantAdapter from './cloudant'
 import CouchAdapter from './couchdb'
 
@@ -42,6 +41,35 @@ const dbauth = (
 		adapter = CouchAdapter(couchAuthDB)
 	}
 
+	const createDB = async (dbName: string) => {
+		const finalUrl = `${util.getDBURL(config.getItem('dbServer'))}/${dbName}`
+		try {
+			const res = await request.put(finalUrl).send({})
+			return JSON.parse(res.text)
+		} catch (error) {
+			return Promise.reject(error)
+		}
+	}
+
+	const getDesignDoc = (docName: string) => {
+		if (!docName) {
+			return null
+		}
+		let designDoc
+		let designDocDir = config.getItem('userDBs.designDocDir')
+		if (!designDocDir) {
+			designDocDir = __dirname
+		}
+		try {
+			// tslint:disable-next-line:non-literal-require
+			designDoc = require(`${designDocDir}/${docName}`)
+		} catch (err) {
+			console.warn(`Design doc: ${designDocDir}/${docName} not found.`)
+			designDoc = null
+		}
+		return designDoc
+	}
+
 	const storeKey = (
 		username: string,
 		key: string,
@@ -77,7 +105,7 @@ const dbauth = (
 						const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
 							skip_setup: true
 						})
-						await deauthorizeKeys(db, keys)
+						deauthorizeKeys(db, keys)
 						return Promise.resolve()
 					} catch (error) {
 						console.log('error deauthorizing db!', error)
@@ -142,7 +170,7 @@ const dbauth = (
 		newDB = new PouchDB(
 			`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
 		) as PouchDB.Database & { name: string }
-		await adapter.initSecurity(newDB, adminRoles, memberRoles)
+		adapter.initSecurity(newDB, adminRoles, memberRoles)
 
 		// Seed the design docs
 		if (designDocs && Array.isArray(designDocs)) {
@@ -150,7 +178,7 @@ const dbauth = (
 				designDocs.map(async ddName => {
 					const dDoc = getDesignDoc(ddName)
 					if (dDoc) {
-						await seed(newDB, dDoc)
+						seed(newDB, dDoc)
 					} else {
 						console.warn(`Failed to locate design doc: ${ddName}`)
 						return Promise.resolve()
@@ -169,7 +197,7 @@ const dbauth = (
 			})
 		}
 		if (keysToAuthorize.length > 0) {
-			await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
+			authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
 		}
 		return finalDBName
 	}
@@ -200,30 +228,11 @@ const dbauth = (
 			}
 		})
 		await Promise.all(
-			Object.keys(keysByUser).map(user => deauthorizeUser(userDocs[user], keysByUser[user]))
+			Object.keys(keysByUser).map(async user => deauthorizeUser(userDocs[user], keysByUser[user]))
 		)
 		// Bulk save user doc updates
 		await userDB.bulkDocs(Object.values(userDocs))
 		return expiredKeys
-	}
-
-	const getDesignDoc = (docName: string) => {
-		if (!docName) {
-			return null
-		}
-		let designDoc
-		let designDocDir = config.getItem('userDBs.designDocDir')
-		if (!designDocDir) {
-			designDocDir = __dirname
-		}
-		try {
-			// tslint-disable-next-line
-			designDoc = require(`${designDocDir}/${docName}`)
-		} catch (err) {
-			console.warn(`Design doc: ${designDocDir}/${docName} not found.`)
-			designDoc = null
-		}
-		return designDoc
 	}
 
 	const getDBConfig = (dbName: string, type?: string) => {
@@ -273,24 +282,6 @@ const dbauth = (
 			dbConfig.type = type || 'private'
 		}
 		return dbConfig
-	}
-
-	const createDB = (dbName: string) => {
-		const finalUrl = `${util.getDBURL(config.getItem('dbServer'))}/${dbName}`
-		return BPromise.fromNode(callback => {
-			request
-				.put(finalUrl)
-				.send({})
-				.end(callback)
-		}).then(
-			res => Promise.resolve(JSON.parse(res.text)),
-			err => {
-				if (err.status === 412) {
-					return Promise.resolve(false)
-				}
-				return Promise.reject(err.text)
-			}
-		)
 	}
 
 	const removeDB = async (dbName: string) => {
