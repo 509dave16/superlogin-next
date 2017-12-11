@@ -3,9 +3,9 @@ import express from 'express'
 import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
 
-import defaultConfig from 'config/default.config'
 import defaultPassport from 'passport'
 import PouchUpsert from 'pouchdb-upsert'
+import defaultConfig from './config/default.config'
 import Configure from './configure'
 import localConfig from './local'
 import Mailer from './mailer'
@@ -124,8 +124,10 @@ const init = async (
 		requireAllRoles: middleware.requireAllRoles
 	}
 
+	Object.keys(emitter).forEach(k => (superlogin[k] = emitter[k]))
+
 	// Inherit emitter
-	return Object.assign({}, superlogin, emitter)
+	return superlogin
 }
 
 export default init
