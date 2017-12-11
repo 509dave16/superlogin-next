@@ -1,39 +1,39 @@
-'use strict'
-var fs = require('fs')
-var BPromise = require('bluebird')
-var nodemailer = require('nodemailer')
-var ejs = require('ejs')
+const fs = require('fs')
+const BPromise = require('bluebird')
+const nodemailer = require('nodemailer')
+const ejs = require('ejs')
+const stubTransport = require('nodemailer-stub-transport')
 
-module.exports = function(config) {
+function mailer(config) {
 	// Initialize the transport mechanism with nodermailer
-	var transporter
-	var customTransport = config.getItem('mailer.transport')
+	let transporter
+	const customTransport = config.getItem('mailer.transport')
 	if (config.getItem('testMode.noEmail')) {
-		transporter = nodemailer.createTransport(require('nodemailer-stub-transport')())
+		transporter = nodemailer.createTransport(stubTransport())
 	} else if (customTransport) {
 		transporter = nodemailer.createTransport(customTransport(config.getItem('mailer.options')))
 	} else {
 		transporter = nodemailer.createTransport(config.getItem('mailer.options'))
 	}
 
-	this.sendEmail = function(templateName, email, locals) {
+	this.sendEmail = (templateName, email, locals) => {
 		// load the template and parse it
-		var templateFile = config.getItem('emails.' + templateName + '.template')
+		const templateFile = config.getItem(`emails.${templateName}.template`)
 		if (!templateFile) {
-			return Promise.reject('No template found for "' + templateName + '".')
+			return Promise.reject(`No template found for "${templateName}".`)
 		}
-		var template = fs.readFileSync(templateFile, 'utf8')
+		const template = fs.readFileSync(templateFile, 'utf8')
 		if (!template) {
-			return Promise.reject('Failed to locate template file: ' + templateFile)
+			return Promise.reject(`Failed to locate template file: ${templateFile}`)
 		}
-		var body = ejs.render(template, locals)
+		const body = ejs.render(template, locals)
 		// form the email
-		var subject = config.getItem('emails.' + templateName + '.subject')
-		var format = config.getItem('emails.' + templateName + '.format')
-		var mailOptions = {
+		const subject = config.getItem(`emails.${templateName}.subject`)
+		const format = config.getItem(`emails.${templateName}.format`)
+		const mailOptions = {
 			from: config.getItem('mailer.fromEmail'),
 			to: email,
-			subject: subject
+			subject
 		}
 		if (format === 'html') {
 			mailOptions.html = body
@@ -44,9 +44,11 @@ module.exports = function(config) {
 			console.log(mailOptions)
 		}
 		// send the message
-		var sendEmail = BPromise.Promisify(transporter.sendMail, { context: transporter })
+		const sendEmail = BPromise.Promisify(transporter.sendMail, { context: transporter })
 		return sendEmail(mailOptions)
 	}
 
 	return this
 }
+
+export default mailer

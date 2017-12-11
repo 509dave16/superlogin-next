@@ -1,11 +1,13 @@
 {
 	"presets": [
+		"@babel/typescript",
 		[
 			"@babel/env",
 			{
+				"targets": {
+					"node": "current"
+				},
 				"exclude": ["transform-regenerator"],
-				"loose": true,
-				"modules": false,
 				"shippedProposals": true
 			}
 		]

@@ -12,6 +12,7 @@
 	},
 	"scripts": {
 		"compile": "babel src -d lib",
+		"lint": "eslint --fix 'src/**/*.js'",
 		"prettier": "prettier --write 'src/**/*.js'",
 		"test": "gulp"
 	},
@@ -60,20 +61,19 @@
 		"@babel/cli": "^7.0.0-beta.34",
 		"@babel/core": "^7.0.0-beta.34",
 		"@babel/preset-env": "^7.0.0-beta.34",
+		"@babel/preset-typescript": "^7.0.0-beta.34",
 		"body-parser": "^1.9.2",
 		"chai": "^4.1.2",
-		"eslint": "^4.13.0",
 		"fast-async": "^6.3.0",
 		"gulp": "^3.8.6",
-		"gulp-jshint": "^2.0.0",
 		"gulp-mocha": "^4.3.1",
-		"jshint": "^2.9.1",
-		"jshint-stylish": "^2.1.0",
 		"mocha": "^4.0.1",
 		"morgan": "^1.5.2",
 		"prettier": "^1.9.1",
 		"rimraf": "^2.5.2",
 		"sinon": "^4.1.2",
-		"sinon-chai": "^2.8.0"
+		"sinon-chai": "^2.8.0",
+		"tslint": "^5.8.0",
+		"typescript": "^2.6.2"
 	}
 }

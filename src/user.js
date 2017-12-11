@@ -1,35 +1,132 @@
-'use strict'
-
-var url = require('url')
-var BPromise = require('bluebird')
-var Model = require('sofa-model')
-var nodemailer = require('nodemailer')
-var extend = require('extend')
-var Session = require('./session')
-var util = require('./util')
-var DBAuth = require('./dbauth')
+const url = require('url')
+const Model = require('sofa-model')
+const extend = require('extend')
+const Session = require('./session')
+const util = require('./util')
+const DBAuth = require('./dbauth')
 const merge = require('lodash.merge')
+const cloudant = require('./dbauth/cloudant')
 
 // regexp from https://github.com/angular/angular.js/blob/master/src/ng/directive/inupsert.js#L4
-var EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
-var USER_REGEXP = /^[a-z0-9_-]{3,16}$/
+const EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
+const USER_REGEXP = /^[a-z0-9_-]{3,16}$/
 
-module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
-	var self = this
-	var dbAuth = new DBAuth(config, userDB, couchAuthDB)
-	var session = new Session(config)
-	var onCreateActions = []
-	var onLinkActions = []
+export default function user(config, userDB, couchAuthDB, mailer, emitter) {
+	const self = this
+	const dbAuth = new DBAuth(config, userDB, couchAuthDB)
+	const session = new Session(config)
+	const onCreateActions = []
+	const onLinkActions = []
 
 	// Token valid for 24 hours by default
 	// Forget password token life
-	var tokenLife = config.getItem('security.tokenLife') || 86400
+	const tokenLife = config.getItem('security.tokenLife') || 86400
 	// Session token life
-	var sessionLife = config.getItem('security.sessionLife') || 86400
+	const sessionLife = config.getItem('security.sessionLife') || 86400
 
-	var emailUsername = config.getItem('local.emailUsername')
+	const emailUsername = config.getItem('local.emailUsername')
 
-	this.validateUsername = function(username) {
+	const addUserDBs = async newUser => {
+		// Add personal DBs
+		if (!config.getItem('userDBs.defaultDBs')) {
+			return Promise.resolve(newUser)
+		}
+		newUser.personalDBs = {}
+
+		const processUserDBs = async (dbList, type) =>
+			Promise.all(
+				dbList.map(async userDBName => {
+					const dbConfig = dbAuth.getDBConfig(userDBName)
+					const finalDBName = await dbAuth.addUserDB(
+						newUser,
+						userDBName,
+						dbConfig.designDocs,
+						type,
+						dbConfig.permissions,
+						dbConfig.adminRoles,
+						dbConfig.memberRoles
+					)
+					delete dbConfig.permissions
+					delete dbConfig.adminRoles
+					delete dbConfig.memberRoles
+					delete dbConfig.designDocs
+					dbConfig.type = type
+					newUser.personalDBs[finalDBName] = dbConfig
+				})
+			)
+
+		// Just in case defaultDBs is not specified
+		let defaultPrivateDBs = config.getItem('userDBs.defaultDBs.private')
+		if (!Array.isArray(defaultPrivateDBs)) {
+			defaultPrivateDBs = []
+		}
+		await processUserDBs(defaultPrivateDBs, 'private')
+		let defaultSharedDBs = config.getItem('userDBs.defaultDBs.shared')
+		if (!Array.isArray(defaultSharedDBs)) {
+			defaultSharedDBs = []
+		}
+		await processUserDBs(defaultSharedDBs, 'shared')
+
+		return Promise.resolve(newUser)
+	}
+
+	const generateSession = (username, roles) => {
+		let getKey
+		if (config.getItem('dbServer.cloudant')) {
+			getKey = cloudant.getAPIKey(userDB)
+		} else {
+			let token = util.URLSafeUUID()
+			// Make sure our token doesn't start with illegal characters
+			while (token[0] === '_' || token[0] === '-') {
+				token = util.URLSafeUUID()
+			}
+			getKey = Promise.resolve({
+				key: token,
+				password: util.URLSafeUUID()
+			})
+		}
+		return getKey.then(key => {
+			const now = Date.now()
+			return Promise.resolve({
+				_id: username,
+				key: key.key,
+				password: key.password,
+				issued: now,
+				expires: now + sessionLife * 1000,
+				roles
+			})
+		})
+	}
+
+	// Adds numbers to a base name until it finds a unique database key
+	const generateUsername = base => {
+		base = base.toLowerCase()
+		const entries = []
+		let finalName
+		return userDB
+			.allDocs({ startkey: base, endkey: `${base}\uffff`, include_docs: false })
+			.then(results => {
+				if (results.rows.length === 0) {
+					return Promise.resolve(base)
+				}
+				for (let i = 0; i < results.rows.length; i += 1) {
+					entries.push(results.rows[i].id)
+				}
+				if (entries.indexOf(base) === -1) {
+					return Promise.resolve(base)
+				}
+				let num = 0
+				while (!finalName) {
+					num += 1
+					if (entries.indexOf(base + num) === -1) {
+						finalName = base + num
+					}
+				}
+				return Promise.resolve(finalName)
+			})
+	}
+
+	this.validateUsername = username => {
 		if (!username) {
 			return Promise.resolve()
 		}
@@ -37,15 +134,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			return Promise.resolve('Invalid username')
 		}
 		return userDB.query('auth/username', { key: username }).then(
-			function(result) {
+			result => {
 				if (result.rows.length === 0) {
 					// Pass!
 					return Promise.resolve()
-				} else {
-					return Promise.resolve('already in use')
 				}
+				return Promise.resolve('already in use')
 			},
-			function(err) {
+			err => {
 				throw new Error(err)
 			}
 		)
@@ -63,9 +159,8 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			if (result.rows.length === 0) {
 				// Pass!
 				return Promise.resolve()
-			} else {
-				return Promise.resolve('already in use')
 			}
+			return Promise.resolve('already in use')
 		} catch (error) {
 			console.log('error validating email', error)
 			return Promise.reject(error)
@@ -83,9 +178,8 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			const result = await userDB.query('auth/emailUsername', { key: email })
 			if (result.rows.length === 0) {
 				return Promise.resolve()
-			} else {
-				return Promise.resolve('already in use')
 			}
+			return Promise.resolve('already in use')
 		} catch (error) {
 			console.log('error validating email/username', error)
 			return Promise.reject(error)
@@ -93,13 +187,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 	}
 
 	// Validation function for ensuring that two fields match
-	this.matches = function(value, option, key, attributes) {
+	this.matches = (value, option, key, attributes) => {
 		if (attributes && attributes[option] !== value) {
-			return 'does not match ' + option
+			return `does not match ${option}`
 		}
+		return ''
 	}
 
-	var passwordConstraints = {
+	let passwordConstraints = {
 		presence: true,
 		length: {
 			minimum: 6,
@@ -115,7 +210,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		config.getItem('local.passwordConstraints')
 	)
 
-	var userModel = {
+	const userModel = {
 		async: true,
 		whitelist: ['name', 'username', 'email', 'password', 'confirmPassword'],
 		customValidators: {
@@ -160,7 +255,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		userModel.validate.email.validateEmailUsername = true
 	}
 
-	var resetPasswordModel = {
+	const resetPasswordModel = {
 		async: true,
 		customValidators: {
 			matches: self.matches
@@ -176,7 +271,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 	}
 
-	var changePasswordModel = {
+	const changePasswordModel = {
 		async: true,
 		customValidators: {
 			matches: self.matches
@@ -189,7 +284,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 	}
 
-	this.onCreate = function(fn) {
+	this.onCreate = fn => {
 		if (typeof fn === 'function') {
 			onCreateActions.push(fn)
 		} else {
@@ -197,7 +292,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 	}
 
-	this.onLink = function(fn) {
+	this.onLink = fn => {
 		if (typeof fn === 'function') {
 			onLinkActions.push(fn)
 		} else {
@@ -205,18 +300,16 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 	}
 
-	function processTransformations(fnArray, userDoc, provider) {
-		var promise
-		fnArray.forEach(function(fn) {
+	const processTransformations = (fnArray, userDoc, provider) => {
+		let promise
+		fnArray.forEach(fn => {
 			if (!promise) {
-				promise = fn.call(null, userDoc, provider)
+				promise = fn(null, userDoc, provider)
 			} else {
 				if (!promise.then || typeof Promise.then !== 'function') {
 					throw new Error('onCreate function must return a promise')
 				}
-				promise.then(function(newUserDoc) {
-					return fn.call(null, newUserDoc, provider)
-				})
+				promise.then(newUserDoc => fn(null, newUserDoc, provider))
 			}
 		})
 		if (!promise) {
@@ -225,43 +318,40 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		return promise
 	}
 
-	this.get = function(login) {
-		var query
+	this.get = login => {
+		let query
 		if (emailUsername) {
 			query = 'emailUsername'
 		} else {
 			query = EMAIL_REGEXP.test(login) ? 'email' : 'username'
 		}
-		return userDB
-			.query('auth/' + query, { key: login, include_docs: true })
-			.then(function(results) {
-				if (results.rows.length > 0) {
-					return Promise.resolve(results.rows[0].doc)
-				} else {
-					return Promise.resolve(null)
-				}
-			})
+		return userDB.query(`auth/${query}`, { key: login, include_docs: true }).then(results => {
+			if (results.rows.length > 0) {
+				return Promise.resolve(results.rows[0].doc)
+			}
+			return Promise.resolve(null)
+		})
 	}
 
-	this.create = function(form, req) {
+	this.create = (form, req) => {
 		req = req || {}
-		var finalUserModel = userModel
-		var newUserModel = config.getItem('userModel')
+		let finalUserModel = userModel
+		const newUserModel = config.getItem('userModel')
 		if (typeof newUserModel === 'object') {
-			var whitelist
+			let whitelist
 			if (newUserModel.whitelist) {
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
 			finalUserModel = extend(true, {}, userModel, config.getItem('userModel'))
 			finalUserModel.whitelist = whitelist || finalUserModel.whitelist
 		}
-		var UserModel = new Model(finalUserModel)
-		var user = new UserModel(form)
-		var newUser
-		return user
+		const UserModel = new Model(finalUserModel)
+		const u = new UserModel(form)
+		let newUser
+		return u
 			.process()
 			.then(
-				function(result) {
+				result => {
 					newUser = result
 					if (emailUsername) {
 						newUser._id = newUser.email
@@ -275,15 +365,14 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					}
 					return util.hashPassword(newUser.password)
 				},
-				function(err) {
-					return Promise.reject({
+				err =>
+					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
-				}
 			)
-			.then(function(hash) {
+			.then(hash => {
 				// Store password hash
 				newUser.local = {}
 				newUser.local.salt = hash.salt
@@ -297,64 +386,60 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 				return addUserDBs(newUser)
 			})
-			.then(function(newUser) {
-				return self.logActivity(newUser._id, 'signup', 'local', req, newUser)
-			})
-			.then(function(newUser) {
-				return processTransformations(onCreateActions, newUser, 'local')
-			})
-			.then(function(finalNewUser) {
-				return userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
-			})
-			.then(function(result) {
+			.then(nU => self.logActivity(nU._id, 'signup', 'local', req, nU))
+			.then(nU => processTransformations(onCreateActions, nU, 'local'))
+			.then(finalNewUser =>
+				userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
+			)
+			.then(result => {
 				newUser._rev = result.rev
 				if (!config.getItem('local.sendConfirmEmail')) {
 					return Promise.resolve()
 				}
 				return mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
-					req: req,
+					req,
 					user: newUser
 				})
 			})
-			.then(function() {
+			.then(() => {
 				emitter.emit('signup', newUser, 'local')
 				return Promise.resolve(newUser)
 			})
 	}
 
 	this.socialAuth = async (provider, auth, profile, req) => {
-		let user
+		let userDoc
 		let newAccount = false
 		let action
 		let baseUsername
+		let finalUsername
 		req = req || {}
-		let ip = req.ip
+		const { ip } = req
 
 		try {
-			console.log('getting results')
-			const results = await userDB.query('auth/' + provider, {
+			console.log('getting results for provider', provider)
+			const results = await userDB.query(`auth/${provider}`, {
 				key: profile.id,
 				include_docs: true
 			})
 			console.log('results', results)
 
 			if (results.rows.length > 0) {
-				user = results.rows[0].doc
+				userDoc = results.rows[0].doc
 			} else {
-				let finalUsername
 				newAccount = true
-				user = {}
-				user[provider] = {}
+				userDoc = {}
+				userDoc[provider] = {}
 				if (profile.emails) {
-					user.email = profile.emails[0].value
+					userDoc.email = profile.emails[0].value
 				}
-				user.providers = [provider]
-				user.type = 'user'
-				user.roles = config.getItem('security.defaultRoles')
-				user.signUp = {
-					provider: provider,
+				userDoc.providers = [provider]
+				userDoc.type = 'user'
+				userDoc.roles = config.getItem('security.defaultRoles')
+				userDoc.signUp = {
+					provider,
 					timestamp: new Date().toISOString(),
-					ip: ip
+					ip
 				}
 				const emailFail = async () =>
 					Promise.reject({
@@ -365,34 +450,32 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				// Now we need to generate a username
 				if (emailUsername) {
-					if (!user.email) {
+					if (!userDoc.email) {
 						return Promise.reject({
 							error: 'No email provided',
-							message:
-								'An email is required for registration, but ' + provider + " didn't supply one.",
+							message: `An email is required for registration, but ${provider} didn't supply one.`,
 							status: 400
 						})
 					}
-					const err = await self.validateEmailUsername(user.email)
+					const err = await self.validateEmailUsername(userDoc.email)
 					if (err) {
 						return emailFail()
 					}
-					finalUsername = user.email.toLowerCase()
+					finalUsername = userDoc.email.toLowerCase()
 				} else {
 					if (profile.username) {
 						baseUsername = profile.username.toLowerCase()
-					} else {
 						// If a username isn't specified we'll take it from the email
-						if (user.email) {
-							const parseEmail = user.email.split('@')
-							baseUsername = parseEmail[0].toLowerCase()
-						} else if (profile.displayName) {
-							baseUsername = profile.displayName.replace(/\s/g, '').toLowerCase()
-						} else {
-							baseUsername = profile.id.toLowerCase()
-						}
+					} else if (userDoc.email) {
+						const parseEmail = userDoc.email.split('@')
+						baseUsername = parseEmail[0].toLowerCase()
+					} else if (profile.displayName) {
+						baseUsername = profile.displayName.replace(/\s/g, '').toLowerCase()
+					} else {
+						baseUsername = profile.id.toLowerCase()
 					}
-					const err = await self.validateEmail(user.email)
+
+					const err = await self.validateEmail(userDoc.email)
 					if (err) {
 						return emailFail()
 					}
@@ -400,19 +483,19 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				}
 			}
 			if (finalUsername) {
-				user._id = finalUsername
+				userDoc._id = finalUsername
 			}
-			user[provider].auth = auth
-			user[provider].profile = profile
-			if (!user.name) {
-				user.name = profile.displayName
+			userDoc[provider].auth = auth
+			userDoc[provider].profile = profile
+			if (!userDoc.name) {
+				userDoc.name = profile.displayName
 			}
-			delete user[provider].profile._raw
+			delete userDoc[provider].profile._raw
 			if (newAccount) {
-				await addUserDBs(user)
+				await addUserDBs(userDoc)
 			}
 			action = newAccount ? 'signup' : 'login'
-			await self.logActivity(user._id, action, provider, req, user)
+			await self.logActivity(userDoc._id, action, provider, req, userDoc)
 			const finalUser = await processTransformations(
 				newAccount ? onCreateActions : onLinkActions,
 				userDoc,
@@ -420,46 +503,42 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			)
 			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			if (action === 'signup') {
-				emitter.emit('signup', user, provider)
+				emitter.emit('signup', finalUser, provider)
 			}
-			return Promise.resolve(user)
+			return Promise.resolve(finalUser)
 		} catch (error) {
 			console.log('social auth failed!', error)
 			return Promise.reject(error)
 		}
 	}
 
-	this.linkSocial = function(user_id, provider, auth, profile, req) {
+	this.linkSocial = (user_id, provider, auth, profile, req) => {
 		req = req || {}
-		var user
+		let linkUser
 		// Load user doc
 		return Promise.resolve()
-			.then(function() {
-				return userDB.query('auth/' + provider, { key: profile.id })
-			})
-			.then(function(results) {
+			.then(() => userDB.query(`auth/${provider}`, { key: profile.id }))
+			.then(results => {
 				if (results.rows.length === 0) {
 					return Promise.resolve()
-				} else {
-					if (results.rows[0].id !== user_id) {
-						return Promise.reject({
-							error: 'Conflict',
-							message: 'This ' + provider + ' profile is already in use by another account.',
-							status: 409
-						})
-					}
 				}
-			})
-			.then(function() {
-				return userDB.get(user_id)
-			})
-			.then(function(theUser) {
-				user = theUser
-				// Check for conflicting provider
-				if (user[provider] && user[provider].profile.id !== profile.id) {
+				if (results.rows[0].id !== user_id) {
 					return Promise.reject({
 						error: 'Conflict',
-						message: 'Your account is already linked with another ' + provider + 'profile.',
+						message: `This ${provider} profile is already in use by another account.`,
+						status: 409
+					})
+				}
+				return Promise.resolve()
+			})
+			.then(() => userDB.get(user_id))
+			.then(theUser => {
+				linkUser = theUser
+				// Check for conflicting provider
+				if (linkUser[provider] && linkUser[provider].profile.id !== profile.id) {
+					return Promise.reject({
+						error: 'Conflict',
+						message: `Your account is already linked with another ${provider}profile.`,
 						status: 409
 					})
 				}
@@ -471,17 +550,16 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return userDB.query('auth/emailUsername', {
 						key: profile.emails[0].value
 					})
-				} else {
-					return userDB.query('auth/email', { key: profile.emails[0].value })
 				}
+				return userDB.query('auth/email', { key: profile.emails[0].value })
 			})
-			.then(function(results) {
-				var passed
+			.then(results => {
+				let passed
 				if (results.rows.length === 0) {
 					passed = true
 				} else {
 					passed = true
-					results.rows.forEach(function(row) {
+					results.rows.forEach(row => {
 						if (row.id !== user_id) {
 							passed = false
 						}
@@ -490,48 +568,40 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				if (!passed) {
 					return Promise.reject({
 						error: 'Conflict',
-						message:
-							'The email ' + profile.emails[0].value + ' is already in use by another account.',
+						message: `The email ${profile.emails[0].value} is already in use by another account.`,
 						status: 409
 					})
-				} else {
-					return Promise.resolve()
 				}
+				return Promise.resolve()
 			})
-			.then(function() {
+			.then(() => {
 				// Insert provider info
-				user[provider] = {}
-				user[provider].auth = auth
-				user[provider].profile = profile
-				if (!user.providers) {
-					user.providers = []
+				linkUser[provider] = {}
+				linkUser[provider].auth = auth
+				linkUser[provider].profile = profile
+				if (!linkUser.providers) {
+					linkUser.providers = []
 				}
-				if (user.providers.indexOf(provider) === -1) {
-					user.providers.push(provider)
+				if (linkUser.providers.indexOf(provider) === -1) {
+					linkUser.providers.push(provider)
 				}
-				if (!user.name) {
-					user.name = profile.displayName
+				if (!linkUser.name) {
+					linkUser.name = profile.displayName
 				}
-				delete user[provider].profile._raw
-				return self.logActivity(user._id, 'link', provider, req, user)
+				delete linkUser[provider].profile._raw
+				return self.logActivity(linkUser._id, 'link', provider, req, linkUser)
 			})
-			.then(function(userDoc) {
-				return processTransformations(onLinkActions, userDoc, provider)
-			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
-				return Promise.resolve(user)
-			})
+			.then(userDoc => processTransformations(onLinkActions, userDoc, provider))
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
+			.then(() => Promise.resolve(linkUser))
 	}
 
-	this.unlink = function(user_id, provider) {
-		var user
+	this.unlink = (user_id, provider) => {
+		let unLinkUser
 		return userDB
 			.get(user_id)
-			.then(function(theUser) {
-				user = theUser
+			.then(theUser => {
+				unLinkUser = theUser
 				if (!provider) {
 					return Promise.reject({
 						error: 'Unlink failed',
@@ -540,7 +610,11 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				}
 				// We can only unlink if there are at least two providers
-				if (!user.providers || !(user.providers instanceof Array) || user.providers.length < 2) {
+				if (
+					!unLinkUser.providers ||
+					!(unLinkUser.providers instanceof Array) ||
+					unLinkUser.providers.length < 2
+				) {
 					return Promise.reject({
 						error: 'Unlink failed',
 						message: "You can't unlink your only provider!",
@@ -556,81 +630,85 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					})
 				}
 				// Check that the provider exists
-				if (!user[provider] || typeof user[provider] !== 'object') {
+				if (!unLinkUser[provider] || typeof unLinkUser[provider] !== 'object') {
 					return Promise.reject({
 						error: 'Unlink failed',
-						message: 'Provider: ' + util.capitalizeFirstLetter(provider) + ' not found.',
+						message: `Provider: ${util.capitalizeFirstLetter(provider)} not found.`,
 						status: 404
 					})
 				}
-				return userDB.upsert(user._id, oldUser => {
-					const { [provider]: deleted } = oldUser
-					if (oldUser.providers) {
+				return userDB.upsert(unLinkUser._id, oldUser => {
+					const { [provider]: deleted, ...newUser } = oldUser
+					if (newUser.providers) {
 						// Remove the unlinked provider from the list of providers
-						oldUser.providers.splice(user.providers.indexOf(provider), 1)
+						newUser.providers.splice(unLinkUser.providers.indexOf(provider), 1)
 					}
-					return oldUser
+					return newUser
 				})
 			})
-			.then(function() {
-				return Promise.resolve(user)
-			})
+			.then(() => Promise.resolve(unLinkUser))
 	}
 
-	this.createSession = function(user_id, provider, req) {
-		var user
-		var newToken
-		var newSession
-		var password
+	this.createSession = (user_id, provider, req) => {
+		let createSessionUser
+		let newToken
+		let newSession
+		let password
 		req = req || {}
-		var ip = req.ip
+		const { ip } = req
 		return userDB
 			.get(user_id)
-			.then(function(record) {
-				user = record
-				return generateSession(user._id, user.roles)
+			.then(record => {
+				createSessionUser = record
+				return generateSession(createSessionUser._id, createSessionUser.roles)
 			})
-			.then(function(token) {
+			.then(token => {
+				// eslint-disable-next-line prefer-destructuring
 				password = token.password
 				newToken = token
 				newToken.provider = provider
 				return session.storeToken(newToken)
 			})
-			.then(function() {
-				return dbAuth.storeKey(user_id, newToken.key, password, newToken.expires, user.roles)
-			})
-			.then(function() {
+			.then(() =>
+				dbAuth.storeKey(user_id, newToken.key, password, newToken.expires, createSessionUser.roles)
+			)
+			.then(() => {
 				// authorize the new session across all dbs
-				if (!user.personalDBs) {
+				if (!createSessionUser.personalDBs) {
 					return Promise.resolve()
 				}
-				return dbAuth.authorizeUserSessions(user_id, user.personalDBs, newToken.key, user.roles)
+				return dbAuth.authorizeUserSessions(
+					user_id,
+					createSessionUser.personalDBs,
+					newToken.key,
+					createSessionUser.roles
+				)
 			})
-			.then(function() {
-				if (!user.session) {
-					user.session = {}
+			.then(() => {
+				if (!createSessionUser.session) {
+					createSessionUser.session = {}
 				}
 				newSession = {
 					issued: newToken.issued,
 					expires: newToken.expires,
-					provider: provider,
-					ip: ip
+					provider,
+					ip
 				}
-				user.session[newToken.key] = newSession
+				createSessionUser.session[newToken.key] = newSession
 				// Clear any failed login attempts
 				if (provider === 'local') {
-					if (!user.local) user.local = {}
-					user.local.failedLoginAttempts = 0
-					delete user.local.lockedUntil
+					if (!createSessionUser.local) createSessionUser.local = {}
+					createSessionUser.local.failedLoginAttempts = 0
+					delete createSessionUser.local.lockedUntil
 				}
-				return self.logActivity(user._id, 'login', provider, req, user)
+				return self.logActivity(createSessionUser._id, 'login', provider, req, createSessionUser)
 			})
-			.then(function(userDoc) {
+			.then(userDoc =>
 				// Clean out expired sessions on login
-				return self.logoutUserSessions(userDoc, 'expired')
-			})
-			.then(function(finalUser) {
-				user = finalUser
+				self.logoutUserSessions(userDoc, 'expired')
+			)
+			.then(finalUser => {
+				createSessionUser = finalUser
 				return userDB.upsert(finalUser._id, oldDoc => {
 					if (oldDoc.local) {
 						delete oldDoc.local.lockedUntil
@@ -639,67 +717,58 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					return merge({}, oldDoc, finalUser)
 				})
 			})
-			.then(function() {
+			.then(() => {
 				newSession.token = newToken.key
 				newSession.password = password
-				newSession.user_id = user._id
-				newSession.roles = user.roles
+				newSession.user_id = createSessionUser._id
+				newSession.roles = createSessionUser.roles
 				// Inject the list of userDBs
-				if (typeof user.personalDBs === 'object') {
-					var userDBs = {}
-					var publicURL
+				if (typeof createSessionUser.personalDBs === 'object') {
+					const userDBs = {}
+					let publicURL
 					if (config.getItem('dbServer.publicURL')) {
-						var dbObj = url.parse(config.getItem('dbServer.publicURL'))
-						dbObj.auth = newSession.token + ':' + newSession.password
+						const dbObj = url.parse(config.getItem('dbServer.publicURL'))
+						dbObj.auth = `${newSession.token}:${newSession.password}`
 						publicURL = dbObj.format()
 					} else {
-						publicURL =
-							config.getItem('dbServer.protocol') +
-							newSession.token +
-							':' +
-							newSession.password +
-							'@' +
-							config.getItem('dbServer.host') +
-							'/'
+						publicURL = `${config.getItem('dbServer.protocol') + newSession.token}:${
+							newSession.password
+						}@${config.getItem('dbServer.host')}/`
 					}
-					Object.keys(user.personalDBs).forEach(function(finalDBName) {
-						userDBs[user.personalDBs[finalDBName].name] = publicURL + finalDBName
+					Object.keys(createSessionUser.personalDBs).forEach(finalDBName => {
+						userDBs[createSessionUser.personalDBs[finalDBName].name] = publicURL + finalDBName
 					})
 					newSession.userDBs = userDBs
 				}
-				if (user.profile) {
-					newSession.profile = user.profile
+				if (createSessionUser.profile) {
+					newSession.profile = createSessionUser.profile
 				}
 				emitter.emit('login', newSession, provider)
 				return Promise.resolve(newSession, provider)
 			})
 	}
 
-	this.handleFailedLogin = function(user, req) {
+	this.handleFailedLogin = (loginUser, req) => {
 		req = req || {}
-		var maxFailedLogins = config.getItem('security.maxFailedLogins')
+		const maxFailedLogins = config.getItem('security.maxFailedLogins')
 		if (!maxFailedLogins) {
 			return Promise.resolve()
 		}
-		if (!user.local) {
-			user.local = {}
+		if (!loginUser.local) {
+			loginUser.local = {}
 		}
-		if (!user.local.failedLoginAttempts) {
-			user.local.failedLoginAttempts = 0
+		if (!loginUser.local.failedLoginAttempts) {
+			loginUser.local.failedLoginAttempts = 0
 		}
-		user.local.failedLoginAttempts++
-		if (user.local.failedLoginAttempts > maxFailedLogins) {
-			user.local.failedLoginAttempts = 0
-			user.local.lockedUntil = Date.now() + config.getItem('security.lockoutTime') * 1000
+		loginUser.local.failedLoginAttempts += 1
+		if (loginUser.local.failedLoginAttempts > maxFailedLogins) {
+			loginUser.local.failedLoginAttempts = 0
+			loginUser.local.lockedUntil = Date.now() + config.getItem('security.lockoutTime') * 1000
 		}
 		return self
-			.logActivity(user._id, 'failed login', 'local', req, user)
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
-				return Promise.resolve(!!user.local.lockedUntil)
-			})
+			.logActivity(loginUser._id, 'failed login', 'local', req, loginUser)
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
+			.then(() => Promise.resolve(!!loginUser.local.lockedUntil))
 	}
 
 	this.logActivity = async (user_id, action, provider, req, userDoc, saveDoc) => {
@@ -707,7 +776,6 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		if (!logSize) {
 			return Promise.resolve(userDoc)
 		}
-		let promise
 		let theUser = userDoc
 		if (!theUser) {
 			if (saveDoc !== false) {
@@ -721,8 +789,8 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 		const entry = {
 			timestamp: new Date().toISOString(),
-			action: action,
-			provider: provider,
+			action,
+			provider,
 			ip: req.ip
 		}
 		userDoc.activity.unshift(entry)
@@ -735,25 +803,23 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		return Promise.resolve(userDoc)
 	}
 
-	this.refreshSession = function(key) {
-		var newSession
+	this.refreshSession = key => {
+		let newSession
 		return session
 			.fetchToken(key)
-			.then(function(oldToken) {
+			.then(oldToken => {
 				newSession = oldToken
 				newSession.expires = Date.now() + sessionLife * 1000
 				return Promise.all([userDB.get(newSession._id), session.storeToken(newSession)])
 			})
-			.then(function(results) {
-				var userDoc = results[0]
+			.then(results => {
+				const userDoc = results[0]
 				userDoc.session[key].expires = newSession.expires
 				// Clean out expired sessions on refresh
 				return self.logoutUserSessions(userDoc, 'expired')
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
+			.then(() => {
 				delete newSession.password
 				newSession.token = newSession.key
 				delete newSession.key
@@ -766,94 +832,87 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			})
 	}
 
-	this.resetPassword = function(form, req) {
+	this.resetPassword = (form, req) => {
 		req = req || {}
-		var ResetPasswordModel = new Model(resetPasswordModel)
-		var passwordResetForm = new ResetPasswordModel(form)
-		var user
+		const ResetPasswordModel = new Model(resetPasswordModel)
+		const passwordResetForm = new ResetPasswordModel(form)
+		let resetUser
 		return passwordResetForm
 			.validate()
 			.then(
-				function() {
-					var tokenHash = util.hashToken(form.token)
+				() => {
+					const tokenHash = util.hashToken(form.token)
 					return userDB.query('auth/passwordReset', {
 						key: tokenHash,
 						include_docs: true
 					})
 				},
-				function(err) {
-					return Promise.reject({
+				err =>
+					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
-				}
 			)
-			.then(function(results) {
+			.then(results => {
 				if (!results.rows.length) {
 					return Promise.reject({ status: 400, error: 'Invalid token' })
 				}
-				user = results.rows[0].doc
-				if (user.forgotPassword.expires < Date.now()) {
+				resetUser = results.rows[0].doc
+				if (resetUser.forgotPassword.expires < Date.now()) {
 					return Promise.reject({ status: 400, error: 'Token expired' })
 				}
 				return util.hashPassword(form.password)
 			})
-			.then(function(hash) {
-				if (!user.local) {
-					user.local = {}
+			.then(hash => {
+				if (!resetUser.local) {
+					resetUser.local = {}
 				}
-				user.local.salt = hash.salt
-				user.local.derived_key = hash.derived_key
-				if (user.providers.indexOf('local') === -1) {
-					user.providers.push('local')
+				resetUser.local.salt = hash.salt
+				resetUser.local.derived_key = hash.derived_key
+				if (resetUser.providers.indexOf('local') === -1) {
+					resetUser.providers.push('local')
 				}
 				// logout user completely
-				return self.logoutUserSessions(user, 'all')
+				return self.logoutUserSessions(resetUser, 'all')
 			})
-			.then(function(userDoc) {
-				user = userDoc
-				delete user.forgotPassword
-				return self.logActivity(user._id, 'reset password', 'local', req, user)
+			.then(userDoc => {
+				resetUser = userDoc
+				delete resetUser.forgotPassword
+				return self.logActivity(resetUser._id, 'reset password', 'local', req, resetUser)
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => {
+			.then(finalUser =>
+				userDB.upsert(finalUser._id, oldUser => {
 					delete oldUser.forgotPassword
 					return merge({}, oldUser, finalUser)
 				})
-			})
-			.then(function() {
-				emitter.emit('password-reset', user)
-				return Promise.resolve(user)
+			)
+			.then(() => {
+				emitter.emit('password-reset', resetUser)
+				return Promise.resolve(resetUser)
 			})
 	}
 
-	this.changePasswordSecure = function(user_id, form, req) {
+	this.changePasswordSecure = (user_id, form, req) => {
 		req = req || {}
-		var self = this
-		var ChangePasswordModel = new Model(changePasswordModel)
-		var changePasswordForm = new ChangePasswordModel(form)
-		var user
+		const ChangePasswordModel = new Model(changePasswordModel)
+		const changePasswordForm = new ChangePasswordModel(form)
+		let changePwUser
 		return changePasswordForm
 			.validate()
 			.then(
-				function() {
-					return userDB.get(user_id)
-				},
-				function(err) {
-					return Promise.reject({
+				() => userDB.get(user_id),
+				err =>
+					Promise.reject({
 						error: 'Validation failed',
 						validationErrors: err,
 						status: 400
 					})
-				}
 			)
-			.then(function() {
-				return userDB.get(user_id)
-			})
-			.then(function(userDoc) {
-				user = userDoc
-				if (user.local && user.local.salt && user.local.derived_key) {
+			.then(() => userDB.get(user_id))
+			.then(userDoc => {
+				changePwUser = userDoc
+				if (changePwUser.local && changePwUser.local.salt && changePwUser.local.derived_key) {
 					// Password is required
 					if (!form.currentPassword) {
 						return Promise.reject({
@@ -862,37 +921,33 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 							status: 400
 						})
 					}
-					return util.verifyPassword(user.local, form.currentPassword)
-				} else {
-					return Promise.resolve()
+					return util.verifyPassword(changePwUser.local, form.currentPassword)
 				}
+				return Promise.resolve()
 			})
 			.then(
-				function() {
-					return self.changePassword(user._id, form.newPassword, user, req)
-				},
-				function(err) {
-					return Promise.reject(
+				() => this.changePassword(changePwUser._id, form.newPassword, changePwUser, req),
+				err =>
+					Promise.reject(
 						err || {
 							error: 'Password change failed',
 							message: 'The current password you supplied is incorrect.',
 							status: 400
 						}
 					)
-				}
 			)
-			.then(function() {
+			.then(() => {
 				if (req.user && req.user.key) {
 					return self.logoutOthers(req.user.key)
-				} else {
-					return Promise.resolve()
 				}
+				return Promise.resolve()
 			})
 	}
 
-	this.changePassword = function(user_id, newPassword, userDoc, req) {
+	this.changePassword = (user_id, newPassword, userDoc, req) => {
 		req = req || {}
-		var promise, user
+		let promise
+		let changePwUser
 		if (userDoc) {
 			promise = Promise.resolve(userDoc)
 		} else {
@@ -900,144 +955,155 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 		}
 		return promise
 			.then(
-				function(doc) {
-					user = doc
+				doc => {
+					changePwUser = doc
 					return util.hashPassword(newPassword)
 				},
-				function(err) {
-					return Promise.reject({
+				() =>
+					Promise.reject({
 						error: 'User not found',
 						status: 404
 					})
-				}
 			)
-			.then(function(hash) {
-				if (!user.local) {
-					user.local = {}
+			.then(hash => {
+				if (!changePwUser.local) {
+					changePwUser.local = {}
 				}
-				user.local.salt = hash.salt
-				user.local.derived_key = hash.derived_key
-				if (user.providers.indexOf('local') === -1) {
-					user.providers.push('local')
+				changePwUser.local.salt = hash.salt
+				changePwUser.local.derived_key = hash.derived_key
+				if (changePwUser.providers.indexOf('local') === -1) {
+					changePwUser.providers.push('local')
 				}
-				return self.logActivity(user._id, 'changed password', 'local', req, user)
+				return self.logActivity(changePwUser._id, 'changed password', 'local', req, changePwUser)
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
-				emitter.emit('password-change', user)
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
+			.then(() => {
+				emitter.emit('password-change', changePwUser)
 			})
 	}
 
-	this.forgotPassword = function(email, req) {
+	this.forgotPassword = (email, req) => {
 		req = req || {}
-		var user, token, tokenHash
+		let forgotPwUser
+		let token
+		let tokenHash
 		return userDB
 			.query('auth/email', { key: email, include_docs: true })
-			.then(function(result) {
+			.then(result => {
 				if (!result.rows.length) {
 					return Promise.reject({
 						error: 'User not found',
 						status: 404
 					})
 				}
-				user = result.rows[0].doc
+				forgotPwUser = result.rows[0].doc
 				token = util.URLSafeUUID()
 				tokenHash = util.hashToken(token)
-				user.forgotPassword = {
+				forgotPwUser.forgotPassword = {
 					token: tokenHash, // Store secure hashed token
 					issued: Date.now(),
 					expires: Date.now() + tokenLife * 1000
 				}
-				return self.logActivity(user._id, 'forgot password', 'local', req, user)
+				return self.logActivity(forgotPwUser._id, 'forgot password', 'local', req, forgotPwUser)
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
-			.then(function() {
-				return mailer.sendEmail('forgotPassword', user.email || user.unverifiedEmail.email, {
-					user: user,
-					req: req,
-					token: token
-				}) // Send user the unhashed token
-			})
-			.then(function() {
-				emitter.emit('forgot-password', user)
-				return Promise.resolve(user.forgotPassword)
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
+			.then(
+				() =>
+					mailer.sendEmail(
+						'forgotPassword',
+						forgotPwUser.email || forgotPwUser.unverifiedEmail.email,
+						{
+							forgotPwUser,
+							req,
+							token
+						}
+					) // Send user the unhashed token
+			)
+			.then(() => {
+				emitter.emit('forgot-password', forgotPwUser)
+				return Promise.resolve(forgotPwUser.forgotPassword)
 			})
 	}
 
-	this.verifyEmail = function(token, req) {
+	this.verifyEmail = (token, req) => {
 		req = req || {}
-		var user
+		let verifyEmailUser
 		return userDB
 			.query('auth/verifyEmail', { key: token, include_docs: true })
-			.then(function(result) {
+			.then(result => {
 				if (!result.rows.length) {
 					return Promise.reject({ error: 'Invalid token', status: 400 })
 				}
-				user = result.rows[0].doc
-				user.email = user.unverifiedEmail.email
-				delete user.unverifiedEmail
-				emitter.emit('email-verified', user)
-				return self.logActivity(user._id, 'verified email', 'local', req, user)
+				verifyEmailUser = result.rows[0].doc
+				verifyEmailUser.email = verifyEmailUser.unverifiedEmail.email
+				delete verifyEmailUser.unverifiedEmail
+				emitter.emit('email-verified', verifyEmailUser)
+				return self.logActivity(
+					verifyEmailUser._id,
+					'verified email',
+					'local',
+					req,
+					verifyEmailUser
+				)
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => {
+			.then(finalUser =>
+				userDB.upsert(finalUser._id, oldUser => {
 					delete oldUser.unverifiedEmail
 					return merge({}, oldUser, finalUser)
 				})
-			})
+			)
 	}
 
-	this.changeEmail = function(user_id, newEmail, req) {
+	this.changeEmail = (user_id, newEmail, req) => {
 		req = req || {}
 		if (!req.user) {
 			req.user = { provider: 'local' }
 		}
-		var user
+		let changeEmailUser
 		return self
 			.validateEmail(newEmail)
-			.then(function(err) {
+			.then(err => {
 				if (err) {
 					return Promise.reject(err)
 				}
 				return userDB.get(user_id)
 			})
-			.then(function(userDoc) {
-				user = userDoc
+			.then(userDoc => {
+				changeEmailUser = userDoc
 				if (config.getItem('local.sendConfirmEmail')) {
-					user.unverifiedEmail = {
+					changeEmailUser.unverifiedEmail = {
 						email: newEmail,
 						token: util.URLSafeUUID()
 					}
-					return mailer.sendEmail('confirmEmail', user.unverifiedEmail.email, {
-						req: req,
-						user: user
+					return mailer.sendEmail('confirmEmail', changeEmailUser.unverifiedEmail.email, {
+						req,
+						changeEmailUser
 					})
-				} else {
-					user.email = newEmail
-					return Promise.resolve()
 				}
+				changeEmailUser.email = newEmail
+				return Promise.resolve()
 			})
-			.then(function() {
-				emitter.emit('email-changed', user)
-				return self.logActivity(user._id, 'changed email', req.user.provider, req, user)
+			.then(() => {
+				emitter.emit('email-changed', changeEmailUser)
+				return self.logActivity(
+					changeEmailUser._id,
+					'changed email',
+					req.user.provider,
+					req,
+					changeEmailUser
+				)
 			})
-			.then(function(finalUser) {
-				return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-			})
+			.then(finalUser => userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser)))
 	}
 
-	this.addUserDB = function(user_id, dbName, type, designDocs, permissions) {
-		var userDoc
-		var dbConfig = dbAuth.getDBConfig(dbName, type || 'private')
+	this.addUserDB = (user_id, dbName, type, designDocs, permissions) => {
+		let userDoc
+		const dbConfig = dbAuth.getDBConfig(dbName, type || 'private')
 		dbConfig.designDocs = designDocs || dbConfig.designDocs || ''
 		dbConfig.permissions = permissions || dbConfig.permissions
 		return userDB
 			.get(user_id)
-			.then(function(result) {
+			.then(result => {
 				userDoc = result
 				return dbAuth.addUserDB(
 					userDoc,
@@ -1049,7 +1115,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 					dbConfig.memberRoles
 				)
 			})
-			.then(function(finalDBName) {
+			.then(finalDBName => {
 				if (!userDoc.personalDBs) {
 					userDoc.personalDBs = {}
 				}
@@ -1067,20 +1133,20 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 	}
 
 	this.removeUserDB = (user_id, dbName, deletePrivate, deleteShared) => {
-		var user
-		var update = false
+		let removeUser
+		let update = false
 		let dbID
 		return userDB
 			.get(user_id)
 			.then(userDoc => {
-				user = userDoc
-				if (user.personalDBs && typeof user.personalDBs === 'object') {
+				removeUser = userDoc
+				if (removeUser.personalDBs && typeof removeUser.personalDBs === 'object') {
 					return new Promise(async res =>
-						Object.keys(user.personalDBs).forEach(async db => {
-							if (user.personalDBs[db].name === dbName) {
+						Object.keys(removeUser.personalDBs).forEach(async db => {
+							if (removeUser.personalDBs[db].name === dbName) {
 								dbID = db
-								var type = user.personalDBs[db].type
-								delete user.personalDBs[db]
+								const { type } = removeUser.personalDBs[db]
+								delete removeUser.personalDBs[db]
 								update = true
 								try {
 									if (type === 'private' && deletePrivate) {
@@ -1104,19 +1170,20 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			.then(() => {
 				if (update) {
 					emitter.emit('user-db-removed', user_id, dbName)
-					return userDB.upsert(user._id, oldUser => {
+					return userDB.upsert(removeUser._id, oldUser => {
 						if (oldUser.personalDBs[dbID]) {
 							delete oldUser.personalDBs[dbID]
 						}
-						merge({}, oldUser, user)
+						merge({}, oldUser, removeUser)
 					})
 				}
 				return Promise.resolve()
 			})
 	}
 
-	this.logoutUser = function(user_id, session_id) {
-		var promise, user
+	this.logoutUser = (user_id, session_id) => {
+		let promise
+		let logoutUser
 		if (user_id) {
 			promise = userDB.get(user_id)
 		} else {
@@ -1129,7 +1196,7 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			}
 			promise = userDB
 				.query('auth/session', { key: session_id, include_docs: true })
-				.then(function(results) {
+				.then(results => {
 					if (!results.rows.length) {
 						return Promise.reject({
 							error: 'unauthorized',
@@ -1140,88 +1207,86 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 				})
 		}
 		return promise
-			.then(function(record) {
-				user = record
+			.then(record => {
+				logoutUser = record
 				user_id = record._id
-				return self.logoutUserSessions(user, 'all')
+				return self.logoutUserSessions(logoutUser, 'all')
 			})
-			.then(function() {
+			.then(() => {
 				emitter.emit('logout', user_id)
 				emitter.emit('logout-all', user_id)
-				return userDB.upsert(user._id, oldUser => merge({}, oldUser, user))
+				return userDB.upsert(logoutUser._id, oldUser => merge({}, oldUser, logoutUser))
 			})
 	}
 
-	this.logoutSession = function(session_id) {
-		var user
-		var startSessions = 0
-		var endSessions = 0
+	this.logoutSession = session_id => {
+		let logoutUser
+		let startSessions = 0
+		let endSessions = 0
 		return userDB
 			.query('auth/session', { key: session_id, include_docs: true })
-			.then(function(results) {
+			.then(results => {
 				if (!results.rows.length) {
 					return Promise.reject({
 						error: 'unauthorized',
 						status: 401
 					})
 				}
-				user = results.rows[0].doc
-				if (user.session) {
-					startSessions = Object.keys(user.session).length
-					if (user.session[session_id]) {
-						delete user.session[session_id]
+				logoutUser = results.rows[0].doc
+				if (logoutUser.session) {
+					startSessions = Object.keys(logoutUser.session).length
+					if (logoutUser.session[session_id]) {
+						delete logoutUser.session[session_id]
 					}
 				}
-				var promises = []
+				const promises = []
 				promises.push(session.deleteTokens(session_id))
 				promises.push(dbAuth.removeKeys(session_id))
-				if (user) {
-					promises.push(dbAuth.deauthorizeUser(user, session_id))
+				if (logoutUser) {
+					promises.push(dbAuth.deauthorizeUser(logoutUser, session_id))
 				}
 				return Promise.all(promises)
 			})
-			.then(function() {
+			.then(() =>
 				// Clean out expired sessions
-				return self.logoutUserSessions(user, 'expired')
-			})
-			.then(function(finalUser) {
-				user = finalUser
-				if (user.session) {
-					endSessions = Object.keys(user.session).length
+				self.logoutUserSessions(logoutUser, 'expired')
+			)
+			.then(finalUser => {
+				logoutUser = finalUser
+				if (logoutUser.session) {
+					endSessions = Object.keys(logoutUser.session).length
 				}
-				emitter.emit('logout', user._id)
+				emitter.emit('logout', logoutUser._id)
 				if (startSessions !== endSessions) {
-					return userDB.upsert(user._id, oldUser => {
+					return userDB.upsert(logoutUser._id, oldUser => {
 						if (oldUser.session) {
 							delete oldUser.session[session_id]
 						}
-						return merge({}, oldUser, user)
+						return merge({}, oldUser, logoutUser)
 					})
-				} else {
-					return Promise.resolve(false)
 				}
+				return Promise.resolve(false)
 			})
 	}
 
-	this.logoutOthers = function(session_id) {
-		var user
+	this.logoutOthers = session_id => {
+		let logoutUser
 		return userDB
 			.query('auth/session', { key: session_id, include_docs: true })
-			.then(function(results) {
+			.then(results => {
 				if (results.rows.length) {
-					user = results.rows[0].doc
-					if (user.session && user.session[session_id]) {
-						return self.logoutUserSessions(user, 'other', session_id)
+					logoutUser = results.rows[0].doc
+					if (logoutUser.session && logoutUser.session[session_id]) {
+						return self.logoutUserSessions(logoutUser, 'other', session_id)
 					}
 				}
 				return Promise.resolve()
 			})
-			.then(function(finalUser) {
+			.then(finalUser => {
 				if (finalUser) {
 					return userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
-				} else {
-					return Promise.resolve(false)
 				}
+				return Promise.resolve(false)
 			})
 	}
 
@@ -1236,27 +1301,20 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 			}
 			if (op === 'other' && currentSession) {
 				// Remove the current session from the list of sessions we are going to delete
-				var index = sessions.indexOf(currentSession)
+				const index = sessions.indexOf(currentSession)
 				if (index > -1) {
 					sessions.splice(index, 1)
 				}
 			}
 			if (sessions.length) {
-				console.log('deleting sessions', sessions)
-				console.log('deleting session tokens')
 				// Delete the sessions from our session store
 				await session.deleteTokens(sessions)
-				console.log('remove session keys')
 				// Remove the keys from our couchDB auth database
 				await dbAuth.removeKeys(sessions)
-				console.log('deauthorizeUser')
 				// Deauthorize keys from each personal database
 				await dbAuth.deauthorizeUser(userDoc, sessions)
-				console.log('deauthorizeUser done')
 				if (op === 'expired' || op === 'other') {
-					sessions.forEach(function(session) {
-						delete userDoc.session[session]
-					})
+					sessions.forEach(s => delete userDoc.session[s])
 				}
 			}
 			if (op === 'all') {
@@ -1270,22 +1328,22 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 	}
 
 	this.remove = async (user_id, destroyDBs) => {
-		var user
-		var promises = []
+		let removeUser
+		const promises = []
 		try {
 			const userDoc = await userDB.get(user_id)
-			const res = await self.logoutUserSessions(userDoc, 'all')
-			user = userDoc
-			if (destroyDBs !== true || !user.personalDBs) {
+			await self.logoutUserSessions(userDoc, 'all')
+			removeUser = userDoc
+			if (destroyDBs !== true || !removeUser.personalDBs) {
 				return Promise.resolve()
 			}
-			Object.keys(user.personalDBs).forEach(function(userdb) {
-				if (user.personalDBs[userdb].type === 'private') {
+			Object.keys(removeUser.personalDBs).forEach(userdb => {
+				if (removeUser.personalDBs[userdb].type === 'private') {
 					promises.push(dbAuth.removeDB(userdb))
 				}
 			})
 			await Promise.all(promises)
-			return userDB.remove(user)
+			return userDB.remove(removeUser)
 		} catch (error) {
 			console.log('error removing user!', error)
 			return Promise.resolve()
@@ -1294,114 +1352,9 @@ module.exports = function(config, userDB, couchAuthDB, mailer, emitter) {
 
 	this.removeExpiredKeys = dbAuth.removeExpiredKeys.bind(dbAuth)
 
-	this.confirmSession = function(key, password) {
-		return session.confirmToken(key, password)
-	}
+	this.confirmSession = (key, password) => session.confirmToken(key, password)
 
-	this.quitRedis = function() {
-		return session.quit()
-	}
-
-	function generateSession(username, roles) {
-		var getKey
-		if (config.getItem('dbServer.cloudant')) {
-			getKey = require('./dbauth/cloudant').getAPIKey(userDB)
-		} else {
-			var token = util.URLSafeUUID()
-			// Make sure our token doesn't start with illegal characters
-			while (token[0] === '_' || token[0] === '-') {
-				token = util.URLSafeUUID()
-			}
-			getKey = Promise.resolve({
-				key: token,
-				password: util.URLSafeUUID()
-			})
-		}
-		return getKey.then(function(key) {
-			var now = Date.now()
-			return Promise.resolve({
-				_id: username,
-				key: key.key,
-				password: key.password,
-				issued: now,
-				expires: now + sessionLife * 1000,
-				roles: roles
-			})
-		})
-	}
-
-	// Adds numbers to a base name until it finds a unique database key
-	function generateUsername(base) {
-		base = base.toLowerCase()
-		var entries = []
-		var finalName
-		return userDB
-			.allDocs({ startkey: base, endkey: base + '\uffff', include_docs: false })
-			.then(function(results) {
-				if (results.rows.length === 0) {
-					return Promise.resolve(base)
-				}
-				for (var i = 0; i < results.rows.length; i++) {
-					entries.push(results.rows[i].id)
-				}
-				if (entries.indexOf(base) === -1) {
-					return Promise.resolve(base)
-				}
-				var num = 0
-				while (!finalName) {
-					num++
-					if (entries.indexOf(base + num) === -1) {
-						finalName = base + num
-					}
-				}
-				return Promise.resolve(finalName)
-			})
-	}
-
-	const addUserDBs = async newUser => {
-		// Add personal DBs
-		if (!config.getItem('userDBs.defaultDBs')) {
-			return Promise.resolve(newUser)
-		}
-		var promises = []
-		newUser.personalDBs = {}
-
-		const processUserDBs = async (dbList, type) =>
-			Promise.all(
-				dbList.map(async userDBName => {
-					const dbConfig = dbAuth.getDBConfig(userDBName)
-					const finalDBName = await dbAuth.addUserDB(
-						newUser,
-						userDBName,
-						dbConfig.designDocs,
-						type,
-						dbConfig.permissions,
-						dbConfig.adminRoles,
-						dbConfig.memberRoles
-					)
-					delete dbConfig.permissions
-					delete dbConfig.adminRoles
-					delete dbConfig.memberRoles
-					delete dbConfig.designDocs
-					dbConfig.type = type
-					newUser.personalDBs[finalDBName] = dbConfig
-				})
-			)
-
-		// Just in case defaultDBs is not specified
-		const defaultPrivateDBs = config.getItem('userDBs.defaultDBs.private')
-		if (!Array.isArray(defaultPrivateDBs)) {
-			defaultPrivateDBs = []
-		}
-		await processUserDBs(defaultPrivateDBs, 'private')
-		const defaultSharedDBs = config.getItem('userDBs.defaultDBs.shared')
-		if (!Array.isArray(defaultSharedDBs)) {
-			defaultSharedDBs = []
-		}
-		await processUserDBs(defaultSharedDBs, 'shared')
-
-		return Promise.resolve(newUser)
-	}
+	this.quitRedis = session.quit
 
 	return this
 }

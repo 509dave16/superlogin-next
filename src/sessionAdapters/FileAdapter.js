@@ -1,64 +1,61 @@
-var BPromise = require('bluebird')
-var fs = BPromise.promisifyAll(require('fs-extra'))
-var path = require('path')
-// Promise.config({ warnings: false });
-function FileAdapter(config) {
-	var sessionsRoot = config.getItem('session.file.sessionsRoot')
+const BPromise = require('bluebird')
+const fs = BPromise.promisifyAll(require('fs-extra'))
+const path = require('path')
+
+const FileAdapter = config => {
+	const sessionsRoot = config.getItem('session.file.sessionsRoot')
 	this._sessionFolder = path.join(process.env.PWD, sessionsRoot)
 	console.log('File Adapter loaded')
 }
 
-module.exports = FileAdapter
+export default FileAdapter
 
-FileAdapter.prototype._getFilepath = function(key) {
+FileAdapter.prototype._getFilepath = function _getFilepath(key) {
 	return path.format({
 		dir: this._sessionFolder,
-		base: key + '.json'
+		base: `${key}.json`
 	})
 }
 
-FileAdapter.prototype.storeKey = function(key, life, data) {
-	var now = Date.now()
+FileAdapter.prototype.storeKey = function storeKey(key, life, data) {
+	const now = Date.now()
 	return fs.outputJsonAsync(this._getFilepath(key), {
-		data: data,
+		data,
 		expire: now + life
 	})
 }
 
-FileAdapter.prototype.getKey = function(key) {
-	var now = Date.now()
+FileAdapter.prototype.getKey = function getKey(key) {
+	const now = Date.now()
 	return fs
 		.readJsonAsync(this._getFilepath(key))
-		.then(function(session) {
+		.then(session => {
 			if (session.expire > now) {
 				return session.data
 			}
 			return false
 		})
-		.catch(function() {
-			return false
-		})
+		.catch(() => false)
 }
 
-FileAdapter.prototype.deleteKeys = function(keys) {
+FileAdapter.prototype.deleteKeys = function deleteKeys(keys) {
 	if (!(keys instanceof Array)) {
 		keys = [keys]
 	}
-	var self = this
-	var deleteQueue = keys.map(function(key) {
-		return fs.removeAsync(self._getFilepath(key))
-	})
+	const self = this
+	const deleteQueue = keys.map(key => fs.removeAsync(self._getFilepath(key)))
 
-	return Promise.all(deleteQueue).then(function(done) {
-		// this._removeExpired();
-		return done.length
-	})
+	return Promise.all(deleteQueue).then(
+		done =>
+			// this._removeExpired();
+			done.length
+	)
 }
 
-FileAdapter.prototype.quit = function() {
+FileAdapter.prototype.quit = function quit() {
 	return Promise.resolve()
 }
 
-FileAdapter.prototype._removeExpired = function() {
+FileAdapter.prototype._removeExpired = function _removeExpired() {
 	// open all files and check session expire date
 }

@@ -1,16 +1,14 @@
-'use strict'
-var util = require('./util')
-var extend = require('util')._extend
-var BPromise = require('bluebird')
-var RedisAdapter = require('./sessionAdapters/RedisAdapter')
-var MemoryAdapter = require('./sessionAdapters/MemoryAdapter')
-var FileAdapter = require('./sessionAdapters/FileAdapter')
+const util = require('./util')
+const extend = require('util')._extend
+const RedisAdapter = require('./sessionAdapters/RedisAdapter')
+const MemoryAdapter = require('./sessionAdapters/MemoryAdapter')
+const FileAdapter = require('./sessionAdapters/FileAdapter')
 
-var tokenPrefix = 'token'
+const tokenPrefix = 'token'
 
 function Session(config) {
-	var adapter
-	var sessionAdapter = config.getItem('session.adapter')
+	let adapter
+	const sessionAdapter = config.getItem('session.adapter')
 	if (sessionAdapter === 'redis') {
 		adapter = new RedisAdapter(config)
 	} else if (sessionAdapter === 'file') {
@@ -23,13 +21,13 @@ function Session(config) {
 
 module.exports = Session
 
-Session.prototype.storeToken = function(token) {
-	var self = this
+Session.prototype.storeToken = function storeToken(token) {
+	const self = this
 	token = extend({}, token)
 	if (!token.password && token.salt && token.derived_key) {
 		return this._adapter
-			.storeKey(tokenPrefix + ':' + token.key, token.expires - Date.now(), JSON.stringify(token))
-			.then(function() {
+			.storeKey(`${tokenPrefix}:${token.key}`, token.expires - Date.now(), JSON.stringify(token))
+			.then(() => {
 				delete token.salt
 				delete token.derived_key
 				return Promise.resolve(token)
@@ -37,39 +35,39 @@ Session.prototype.storeToken = function(token) {
 	}
 	return util
 		.hashPassword(token.password)
-		.then(function(hash) {
+		.then(hash => {
 			token.salt = hash.salt
 			token.derived_key = hash.derived_key
 			delete token.password
 			return self._adapter.storeKey(
-				tokenPrefix + ':' + token.key,
+				`${tokenPrefix}:${token.key}`,
 				token.expires - Date.now(),
 				JSON.stringify(token)
 			)
 		})
-		.then(function() {
+		.then(() => {
 			delete token.salt
 			delete token.derived_key
 			return Promise.resolve(token)
 		})
 }
 
-Session.prototype.deleteTokens = function(keys) {
-	var entries = []
+Session.prototype.deleteTokens = function deleteTokens(keys) {
+	const entries = []
 	if (!(keys instanceof Array)) {
 		keys = [keys]
 	}
-	keys.forEach(function(key) {
-		entries.push(tokenPrefix + ':' + key)
+	keys.forEach(key => {
+		entries.push(`${tokenPrefix}:${key}`)
 	})
 	return this._adapter.deleteKeys(entries)
 }
 
-Session.prototype.confirmToken = function(key, password) {
-	var token
+Session.prototype.confirmToken = function confirmToken(key, password) {
+	let token
 	return this._adapter
-		.getKey(tokenPrefix + ':' + key)
-		.then(function(result) {
+		.getKey(`${tokenPrefix}:${key}`)
+		.then(result => {
 			if (!result) {
 				return Promise.reject('invalid token')
 			}
@@ -77,23 +75,21 @@ Session.prototype.confirmToken = function(key, password) {
 			return util.verifyPassword(token, password)
 		})
 		.then(
-			function() {
+			() => {
 				delete token.salt
 				delete token.derived_key
 				return Promise.resolve(token)
 			},
-			function() {
-				return Promise.reject('invalid token')
-			}
+			() => Promise.reject('invalid token')
 		)
 }
 
-Session.prototype.fetchToken = function(key) {
-	return this._adapter.getKey(tokenPrefix + ':' + key).then(function(result) {
-		return Promise.resolve(JSON.parse(result))
-	})
+Session.prototype.fetchToken = function fetchToken(key) {
+	return this._adapter
+		.getKey(`${tokenPrefix}:${key}`)
+		.then(result => Promise.resolve(JSON.parse(result)))
 }
 
-Session.prototype.quit = function() {
+Session.prototype.quit = function quit() {
 	return this._adapter.quit()
 }

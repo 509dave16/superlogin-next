@@ -1,22 +1,62 @@
-'use strict'
-var url = require('url')
-var BPromise = require('bluebird')
-var request = require('superagent')
-var util = require('./../util')
+const url = require('url')
+const BPromise = require('bluebird')
+const request = require('superagent')
+const util = require('./../util')
 
-// This is not needed with Cloudant
-exports.storeKey = function() {
-	return Promise.resolve()
+const getSecurityUrl = db => {
+	const parsedUrl = url.parse(db.name)
+	parsedUrl.pathname += '/_security'
+	return url.format(parsedUrl)
+}
+
+export const getAPIKey = db => {
+	const parsedUrl = url.parse(db.name)
+	parsedUrl.pathname = '/_api/v2/api_keys'
+	const finalUrl = url.format(parsedUrl)
+	return BPromise.fromNode(callback => {
+		request
+			.post(finalUrl)
+			//       .set(db.getHeaders())
+			.end(callback)
+	}).then(res => {
+		const result = JSON.parse(res.text)
+		if (result.key && result.password && result.ok === true) {
+			return Promise.resolve(result)
+		}
+		return Promise.reject(result)
+	})
+}
+
+export const getSecurityCloudant = db => {
+	const finalUrl = getSecurityUrl(db)
+	return BPromise.fromNode(callback => {
+		request
+			.get(finalUrl)
+			//       .set(db.getHeaders())
+			.end(callback)
+	}).then(res => Promise.resolve(JSON.parse(res.text)))
+}
+
+export const putSecurityCloudant = (db, doc) => {
+	const finalUrl = getSecurityUrl(db)
+	return BPromise.fromNode(callback => {
+		request
+			.put(finalUrl)
+			//       .set(db.getHeaders())
+			.send(doc)
+			.end(callback)
+	}).then(res => Promise.resolve(JSON.parse(res.text)))
 }
 
 // This is not needed with Cloudant
-exports.removeKeys = function() {
-	return Promise.resolve()
-}
+export const storeKey = () => Promise.resolve()
 
-exports.initSecurity = function(db, adminRoles, memberRoles) {
-	var changes = false
-	return db.get('_security').then(function(secDoc) {
+// This is not needed with Cloudant
+export const removeKeys = () => Promise.resolve()
+
+export const initSecurity = (db, adminRoles, memberRoles) => {
+	let changes = false
+	return db.get('_security').then(secDoc => {
 		if (!secDoc.admins) {
 			secDoc.admins = { names: [], roles: [] }
 		}
@@ -29,13 +69,13 @@ exports.initSecurity = function(db, adminRoles, memberRoles) {
 		if (!secDoc.members.roles) {
 			secDoc.admins.roles = []
 		}
-		adminRoles.forEach(function(role) {
+		adminRoles.forEach(role => {
 			if (secDoc.admins.roles.indexOf(role) === -1) {
 				changes = true
 				secDoc.admins.roles.push(role)
 			}
 		})
-		memberRoles.forEach(function(role) {
+		memberRoles.forEach(role => {
 			if (secDoc.members.roles.indexOf(role) === -1) {
 				changes = true
 				secDoc.members.roles.push(role)
@@ -43,53 +83,52 @@ exports.initSecurity = function(db, adminRoles, memberRoles) {
 		})
 		if (changes) {
 			return putSecurityCloudant(db, secDoc)
-		} else {
-			return Promise.resolve(false)
 		}
+		return Promise.resolve(false)
 	})
 }
 
-exports.authorizeKeys = function(user_id, db, keys, permissions, roles) {
-	var keysObj = {}
+export const authorizeKeys = (user_id, db, keys, permissions, roles) => {
+	let keysObj = {}
 	if (!permissions) {
 		permissions = ['_reader', '_replicator']
 	}
 	permissions = permissions.concat(roles || [])
-	permissions.unshift('user:' + user_id)
+	permissions.unshift(`user:${user_id}`)
 	// If keys is a single value convert it to an Array
 	keys = util.toArray(keys)
 	// Check if keys is an array and convert it to an object
 	if (keys instanceof Array) {
-		keys.forEach(function(key) {
+		keys.forEach(key => {
 			keysObj[key] = permissions
 		})
 	} else {
 		keysObj = keys
 	}
 	// Pull the current _security doc
-	return getSecurityCloudant(db).then(function(secDoc) {
+	return getSecurityCloudant(db).then(secDoc => {
 		if (!secDoc._id) {
 			secDoc._id = '_security'
 		}
 		if (!secDoc.cloudant) {
 			secDoc.cloudant = {}
 		}
-		Object.keys(keysObj).forEach(function(key) {
+		Object.keys(keysObj).forEach(key => {
 			secDoc.cloudant[key] = keysObj[key]
 		})
 		return putSecurityCloudant(db, secDoc)
 	})
 }
 
-exports.deauthorizeKeys = function(db, keys) {
+export const deauthorizeKeys = (db, keys) => {
 	// cast keys to an Array
 	keys = util.toArray(keys)
-	return getSecurityCloudant(db).then(function(secDoc) {
-		var changes = false
+	return getSecurityCloudant(db).then(secDoc => {
+		let changes = false
 		if (!secDoc.cloudant) {
 			return Promise.resolve(false)
 		}
-		keys.forEach(function(key) {
+		keys.forEach(key => {
 			if (secDoc.cloudant[key]) {
 				changes = true
 				delete secDoc.cloudant[key]
@@ -97,58 +136,7 @@ exports.deauthorizeKeys = function(db, keys) {
 		})
 		if (changes) {
 			return putSecurityCloudant(db, secDoc)
-		} else {
-			return Promise.resolve(false)
 		}
+		return Promise.resolve(false)
 	})
-}
-
-exports.getAPIKey = function(db) {
-	var parsedUrl = url.parse(db.name)
-	parsedUrl.pathname = '/_api/v2/api_keys'
-	var finalUrl = url.format(parsedUrl)
-	return BPromise.fromNode(function(callback) {
-		request
-			.post(finalUrl)
-			//       .set(db.getHeaders())
-			.end(callback)
-	}).then(function(res) {
-		var result = JSON.parse(res.text)
-		if (result.key && result.password && result.ok === true) {
-			return Promise.resolve(result)
-		} else {
-			return Promise.reject(result)
-		}
-	})
-}
-
-var getSecurityCloudant = (exports.getSecurityCloudant = function(db) {
-	var finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(function(callback) {
-		request
-			.get(finalUrl)
-			//       .set(db.getHeaders())
-			.end(callback)
-	}).then(function(res) {
-		return Promise.resolve(JSON.parse(res.text))
-	})
-})
-
-var putSecurityCloudant = (exports.putSecurityCloudant = function(db, doc) {
-	var finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(function(callback) {
-		request
-			.put(finalUrl)
-			//       .set(db.getHeaders())
-			.send(doc)
-			.end(callback)
-	}).then(function(res) {
-		return Promise.resolve(JSON.parse(res.text))
-	})
-})
-
-function getSecurityUrl(db) {
-	var parsedUrl = url.parse(db.name)
-	parsedUrl.pathname = parsedUrl.pathname + '/_security'
-	return url.format(parsedUrl)
 }

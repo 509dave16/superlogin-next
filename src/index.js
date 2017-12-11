@@ -1,30 +1,31 @@
-'use strict'
-var events = require('events')
-var express = require('express')
-var BPromise = require('bluebird')
-var PouchDB = require('pouchdb-node')
-var seed = require('pouchdb-seed-design')
+const events = require('events')
+const express = require('express')
+const PouchDB = require('pouchdb-node')
+const seed = require('pouchdb-seed-design')
 
-var Configure = require('./configure')
-var User = require('./user')
-var Oauth = require('./oauth')
-var loadRoutes = require('./routes')
-var localConfig = require('./local')
-var Middleware = require('./middleware')
-var Mailer = require('./mailer')
-var util = require('./util')
+const Configure = require('./configure')
+const User = require('./user')
+const Oauth = require('./oauth')
+const loadRoutes = require('./routes')
+const localConfig = require('./local')
+const Middleware = require('./middleware')
+const Mailer = require('./mailer')
+const util = require('./util')
+const defaultConfig = require('../config/default.config')
+const defaultPassport = require('passport')
+const userDesignDocs = require('../designDocs/user-design')
 
 PouchDB.plugin(require('pouchdb-upsert'))
 
-module.exports = function(configData, passport, userDB, couchAuthDB) {
-	var config = new Configure(configData, require('../config/default.config'))
-	var router = express.Router()
-	var emitter = new events.EventEmitter()
+const init = async (configData, passport, userDB, couchAuthDB) => {
+	const config = new Configure(configData, defaultConfig)
+	const router = express.Router()
+	const emitter = new events.EventEmitter()
 
 	if (!passport || typeof passport !== 'object') {
-		passport = require('passport')
+		passport = defaultPassport
 	}
-	var middleware = new Middleware(passport)
+	const middleware = new Middleware(passport)
 
 	// Some extra default settings if no config object is specified
 	if (!configData) {
@@ -53,26 +54,27 @@ module.exports = function(configData, passport, userDB, couchAuthDB) {
 		)
 	}
 
-	var mailer = new Mailer(config)
-	var user = new User(config, userDB, couchAuthDB, mailer, emitter)
-	var oauth = new Oauth(router, passport, user, config)
+	const mailer = new Mailer(config)
+	const user = new User(config, userDB, couchAuthDB, mailer, emitter)
+	const oauth = new Oauth(router, passport, user, config)
 
 	// Seed design docs for the user database
-	var userDesign = require('../designDocs/user-design')
+	let userDesign = userDesignDocs
 	userDesign = util.addProvidersToDesignDoc(config, userDesign)
-	seed(userDB, userDesign)
+	const seedResult = await seed(userDB, userDesign)
+	console.log('seed result', seedResult)
 	// Configure Passport local login and api keys
 	localConfig(config, passport, user)
 	// Load the routes
 	loadRoutes(config, router, passport, user)
 
-	var superlogin = {
-		config: config,
-		router: router,
-		mailer: mailer,
-		passport: passport,
-		userDB: userDB,
-		couchAuthDB: couchAuthDB,
+	const superlogin = {
+		config,
+		router,
+		mailer,
+		passport,
+		userDB,
+		couchAuthDB,
 		registerProvider: oauth.registerProvider,
 		registerOAuth2: oauth.registerOAuth2,
 		registerTokenProvider: oauth.registerTokenProvider,
@@ -110,8 +112,7 @@ module.exports = function(configData, passport, userDB, couchAuthDB) {
 	}
 
 	// Inherit emitter
-	for (var key in emitter) {
-		superlogin[key] = emitter[key]
-	}
-	return superlogin
+	return Object.assign({}, superlogin, emitter)
 }
+
+export default init

@@ -1,105 +1,91 @@
-'use strict'
-var util = require('./util')
+const util = require('./util')
 
-module.exports = function(config, router, passport, user) {
-	var env = process.env.NODE_ENV || 'development'
+const routes = (config, router, passport, user) => {
+	const env = process.env.NODE_ENV || 'development'
 
 	router.post(
 		'/login',
-		function(req, res, next) {
-			passport.authenticate('local', function(err, user, info) {
+		(req, res, next) => {
+			passport.authenticate('local', (err, passportUser, info) => {
 				if (err) {
 					return next(err)
 				}
-				if (!user) {
+				if (!passportUser) {
 					// Authentication failed
 					return res.status(401).json(info)
 				}
 				// Success
-				req.logIn(user, { session: false }, function(err) {
-					if (err) {
-						return next(err)
-					}
-				})
+				req.logIn(
+					passportUser,
+					{ session: false },
+					loginErr => (loginErr ? next(loginErr) : undefined)
+				)
 				return next()
 			})(req, res, next)
 		},
-		function(req, res, next) {
+		(req, res, next) =>
 			// Success handler
-			return user.createSession(req.user._id, 'local', req).then(
-				function(mySession) {
+			user.createSession(req.user._id, 'local', req).then(
+				mySession => {
 					res.status(200).json(mySession)
 				},
-				function(err) {
+				err => next(err)
+			)
+	)
+
+	router.post('/refresh', passport.authenticate('bearer', { session: false }), (req, res, next) =>
+		user.refreshSession(req.user.key).then(
+			mySession => {
+				res.status(200).json(mySession)
+			},
+			err => next(err)
+		)
+	)
+
+	router.post('/logout', (req, res, next) => {
+		const sessionToken = util.getSessionToken(req)
+		if (!sessionToken) {
+			return next({
+				error: 'unauthorized',
+				status: 401
+			})
+		}
+		return user.logoutSession(sessionToken).then(
+			() => res.status(200).json({ ok: true, success: 'Logged out' }),
+			err => {
+				console.error('Logout failed')
+				return next(err)
+			}
+		)
+	})
+
+	router.post(
+		'/logout-others',
+		passport.authenticate('bearer', { session: false }),
+		(req, res, next) => {
+			user.logoutOthers(req.user.key).then(
+				() => {
+					res.status(200).json({ success: 'Other sessions logged out' })
+				},
+				err => {
+					console.error('Logout failed')
 					return next(err)
 				}
 			)
 		}
 	)
 
-	router.post('/refresh', passport.authenticate('bearer', { session: false }), function(
-		req,
-		res,
-		next
-	) {
-		return user.refreshSession(req.user.key).then(
-			function(mySession) {
-				res.status(200).json(mySession)
-			},
-			function(err) {
-				return next(err)
-			}
-		)
-	})
-
-	router.post('/logout', function(req, res, next) {
-		var sessionToken = util.getSessionToken(req)
+	router.post('/logout-all', (req, res, next) => {
+		const sessionToken = util.getSessionToken(req)
 		if (!sessionToken) {
 			return next({
 				error: 'unauthorized',
 				status: 401
 			})
 		}
-		user.logoutSession(sessionToken).then(
-			function() {
-				res.status(200).json({ ok: true, success: 'Logged out' })
-			},
-			function(err) {
-				console.error('Logout failed')
-				return next(err)
-			}
-		)
-	})
-
-	router.post('/logout-others', passport.authenticate('bearer', { session: false }), function(
-		req,
-		res,
-		next
-	) {
-		user.logoutOthers(req.user.key).then(
-			function() {
-				res.status(200).json({ success: 'Other sessions logged out' })
-			},
-			function(err) {
-				console.error('Logout failed')
-				return next(err)
-			}
-		)
-	})
-
-	router.post('/logout-all', function(req, res, next) {
-		var sessionToken = util.getSessionToken(req)
-		if (!sessionToken) {
-			return next({
-				error: 'unauthorized',
-				status: 401
-			})
-		}
-		user.logoutUser(null, sessionToken).then(
-			function() {
-				res.status(200).json({ success: 'Logged out' })
-			},
-			function(err) {
+		return user.logoutUser(null, sessionToken).then(
+			() => res.status(200).json({ success: 'Logged out' }),
+			err => {
 				console.error('Logout-all failed')
 				return next(err)
 			}
@@ -107,113 +93,96 @@ module.exports = function(config, router, passport, user) {
 	})
 
 	// Setting up the auth api
-	router.post('/register', function(req, res, next) {
+	router.post('/register', (req, res, next) => {
 		user.create(req.body, req).then(
-			function(newUser) {
+			newUser => {
 				if (config.getItem('security.loginOnRegistration')) {
 					return user.createSession(newUser._id, 'local', req.ip).then(
-						function(mySession) {
+						mySession => {
 							res.status(200).json(mySession)
 						},
-						function(err) {
-							return next(err)
-						}
+						err => next(err)
 					)
-				} else {
-					res.status(201).json({ success: 'User created.' })
 				}
+				return res.status(201).json({ success: 'User created.' })
 			},
-			function(err) {
-				return next(err)
-			}
+			err => next(err)
 		)
 	})
 
-	router.post('/forgot-password', function(req, res, next) {
-		user.forgotPassword(req.body.email, req).then(
-			function() {
-				res.status(200).json({ success: 'Password recovery email sent.' })
-			},
-			function(err) {
-				return next(err)
-			}
-		)
-	})
+	router.post('/forgot-password', (req, res, next) =>
+		user
+			.forgotPassword(req.body.email, req)
+			.then(
+				() => res.status(200).json({ success: 'Password recovery email sent.' }),
+				err => next(err)
+			)
+	)
 
-	router.post('/password-reset', function(req, res, next) {
+	router.post('/password-reset', (req, res, next) => {
 		user.resetPassword(req.body, req).then(
-			function(currentUser) {
+			currentUser => {
 				if (config.getItem('security.loginOnPasswordReset')) {
 					return user.createSession(currentUser._id, 'local', req.ip).then(
-						function(mySession) {
+						mySession => {
 							res.status(200).json(mySession)
 						},
-						function(err) {
-							return next(err)
-						}
+						err => next(err)
 					)
-				} else {
-					res.status(200).json({ success: 'Password successfully reset.' })
 				}
+				return res.status(200).json({ success: 'Password successfully reset.' })
 			},
-			function(err) {
-				return next(err)
-			}
+			err => next(err)
 		)
 	})
 
-	router.post('/password-change', passport.authenticate('bearer', { session: false }), function(
-		req,
-		res,
-		next
-	) {
-		user.changePasswordSecure(req.user._id, req.body, req).then(
-			function() {
-				res.status(200).json({ success: 'password changed' })
-			},
-			function(err) {
-				return next(err)
-			}
-		)
-	})
+	router.post(
+		'/password-change',
+		passport.authenticate('bearer', { session: false }),
+		(req, res, next) => {
+			user.changePasswordSecure(req.user._id, req.body, req).then(
+				() => {
+					res.status(200).json({ success: 'password changed' })
+				},
+				err => next(err)
+			)
+		}
+	)
 
-	router.post('/unlink/:provider', passport.authenticate('bearer', { session: false }), function(
-		req,
-		res,
-		next
-	) {
-		var provider = req.params.provider
-		user.unlink(req.user._id, provider).then(
-			function() {
-				res.status(200).json({ success: util.capitalizeFirstLetter(provider) + ' unlinked' })
-			},
-			function(err) {
-				return next(err)
-			}
-		)
-	})
+	router.post(
+		'/unlink/:provider',
+		passport.authenticate('bearer', { session: false }),
+		(req, res, next) => {
+			const { provider } = req.params
+			user
+				.unlink(req.user._id, provider)
+				.then(
+					() =>
+						res.status(200).json({ success: `${util.capitalizeFirstLetter(provider)} unlinked` }),
+					err => next(err)
+				)
+		}
+	)
 
-	router.get('/confirm-email/:token', function(req, res, next) {
-		var redirectURL = config.getItem('local.confirmEmailRedirectURL')
+	router.get('/confirm-email/:token', (req, res, next) => {
+		const redirectURL = config.getItem('local.confirmEmailRedirectURL')
 		if (!req.params.token) {
-			var err = { error: 'Email verification token required' }
+			const err = { error: 'Email verification token required' }
 			if (redirectURL) {
-				return res.status(201).redirect(redirectURL + '?error=' + encodeURIComponent(err.error))
+				return res.status(201).redirect(`${redirectURL}?error=${encodeURIComponent(err.error)}`)
 			}
 			return res.status(400).send(err)
 		}
-		user.verifyEmail(req.params.token, req).then(
-			function() {
+		return user.verifyEmail(req.params.token, req).then(
+			() =>
+				redirectURL
+					? res.status(201).redirect(`${redirectURL}?success=true`)
+					: res.status(200).send({ ok: true, success: 'Email verified' }),
+			err => {
 				if (redirectURL) {
-					return res.status(201).redirect(redirectURL + '?success=true')
-				}
-				res.status(200).send({ ok: true, success: 'Email verified' })
-			},
-			function(err) {
-				if (redirectURL) {
-					var query = '?error=' + encodeURIComponent(err.error)
+					let query = `?error=${encodeURIComponent(err.error)}`
 					if (err.message) {
-						query += '&message=' + encodeURIComponent(err.message)
+						query += `&message=${encodeURIComponent(err.message)}`
 					}
 					return res.status(201).redirect(redirectURL + query)
 				}
@@ -222,26 +191,23 @@ module.exports = function(config, router, passport, user) {
 		)
 	})
 
-	router.get('/validate-username/:username', function(req, res, next) {
+	router.get('/validate-username/:username', (req, res, next) => {
 		if (!req.params.username) {
 			return next({ error: 'Username required', status: 400 })
 		}
-		user.validateUsername(req.params.username).then(
-			function(err) {
-				if (!err) {
-					res.status(200).json({ ok: true })
-				} else {
-					res.status(409).json({ error: 'Username already in use' })
-				}
-			},
-			function(err) {
-				return next(err)
-			}
-		)
+		return user
+			.validateUsername(req.params.username)
+			.then(
+				err =>
+					err
+						? res.status(409).json({ error: 'Username already in use' })
+						: res.status(200).json({ ok: true }),
+				err => next(err)
+			)
 	})
 
-	router.get('/validate-email/:email', function(req, res, next) {
-		var promise
+	router.get('/validate-email/:email', (req, res, next) => {
+		let promise
 		if (!req.params.email) {
 			return next({ error: 'Email required', status: 400 })
 		}
@@ -250,47 +216,40 @@ module.exports = function(config, router, passport, user) {
 		} else {
 			promise = user.validateEmail(req.params.email)
 		}
-		promise.then(
-			function(err) {
-				if (!err) {
-					res.status(200).json({ ok: true })
-				} else {
-					res.status(409).json({ error: 'Email already in use' })
-				}
-			},
-			function(err) {
-				return next(err)
-			}
+		return promise.then(
+			err =>
+				err
+					? res.status(409).json({ error: 'Email already in use' })
+					: res.status(200).json({ ok: true }),
+			err => next(err)
 		)
 	})
 
-	router.post('/change-email', passport.authenticate('bearer', { session: false }), function(
-		req,
-		res,
-		next
-	) {
-		user.changeEmail(req.user._id, req.body.newEmail, req).then(
-			function() {
-				res.status(200).json({ ok: true, success: 'Email changed' })
-			},
-			function(err) {
-				return next(err)
-			}
-		)
-	})
+	router.post(
+		'/change-email',
+		passport.authenticate('bearer', { session: false }),
+		(req, res, next) => {
+			user.changeEmail(req.user._id, req.body.newEmail, req).then(
+				() => {
+					res.status(200).json({ ok: true, success: 'Email changed' })
+				},
+				err => next(err)
+			)
+		}
+	)
 
 	// route to test token authentication
-	router.get('/session', passport.authenticate('bearer', { session: false }), function(req, res) {
-		var user = req.user
-		user.user_id = user._id
-		delete user._id
+	router.get('/session', passport.authenticate('bearer', { session: false }), (req, res) => {
+		const { user: sessionUser } = req
+		sessionUser.user_id = sessionUser._id
+		delete sessionUser._id
 		// user.token = user.key;
-		delete user.key
-		res.status(200).json(user)
+		delete sessionUser.key
+		res.status(200).json(sessionUser)
 	})
 
 	// Error handling
-	router.use(function(err, req, res, next) {
+	router.use((err, req, res) => {
 		console.error(err)
 		if (err.stack) {
 			console.error(err.stack)
@@ -302,3 +261,5 @@ module.exports = function(config, router, passport, user) {
 		res.json(err)
 	})
 }
+
+export default routes

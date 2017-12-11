@@ -1,97 +1,82 @@
-'use strict'
+const BPromise = require('bluebird')
+const URLSafeBase64 = require('urlsafe-base64')
+const uuid = require('uuid')
+const pwd = require('couch-pwd')
+const crypto = require('crypto')
 
-var BPromise = require('bluebird')
-var URLSafeBase64 = require('urlsafe-base64')
-var uuid = require('uuid')
-var pwd = require('couch-pwd')
-var crypto = require('crypto')
+export const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, Buffer.from(16)))
 
-exports.URLSafeUUID = function() {
-	return URLSafeBase64.encode(uuid.v4(null, new Buffer(16)))
-}
-
-exports.hashToken = function(token) {
-	return crypto
+export const hashToken = token =>
+	crypto
 		.createHash('sha256')
 		.update(token)
 		.digest('hex')
-}
 
-exports.hashPassword = function(password) {
-	return new Promise(function(resolve, reject) {
-		pwd.hash(password, function(err, salt, hash) {
+export const hashPassword = password =>
+	new Promise((resolve, reject) => {
+		pwd.hash(password, (err, salt, hash) => {
 			if (err) {
 				return reject(err)
 			}
 			return resolve({
-				salt: salt,
-				derived_key: hash
+				salt,
+				derivedKey: hash
 			})
 		})
 	})
-}
 
-exports.verifyPassword = function(hashObj, password) {
-	var getHash = BPromise.Promisify(pwd.hash, { context: pwd })
-	var iterations = hashObj.iterations
-	var salt = hashObj.salt
-	var derived_key = hashObj.derived_key
+export const verifyPassword = (hashObj, password) => {
+	const getHash = BPromise.Promisify(pwd.hash, { context: pwd })
+	const { iterations, salt, derivedKey } = hashObj
 	if (iterations) {
 		pwd.iterations(iterations)
 	}
-	if (!salt || !derived_key) {
+	if (!salt || !derivedKey) {
 		return Promise.reject(false)
 	}
-	return getHash(password, salt).then(function(hash) {
-		if (hash === derived_key) {
+	return getHash(password, salt).then(hash => {
+		if (hash === derivedKey) {
 			return Promise.resolve(true)
-		} else {
-			return Promise.reject(false)
 		}
+		return Promise.reject(false)
 	})
 }
 
-exports.getDBURL = function(db) {
-	var url
+export const getDBURL = db => {
+	let url
 	if (db.user) {
-		url =
-			db.protocol +
-			encodeURIComponent(db.user) +
-			':' +
-			encodeURIComponent(db.password) +
-			'@' +
+		url = `${db.protocol + encodeURIComponent(db.user)}:${encodeURIComponent(db.password)}@${
 			db.host
+		}`
 	} else {
 		url = db.protocol + db.host
 	}
 	return url
 }
 
-exports.getFullDBURL = function(dbConfig, dbName) {
-	return exports.getDBURL(dbConfig) + '/' + dbName
-}
+export const getFullDBURL = (dbConfig, dbName) => `${getDBURL(dbConfig)}/${dbName}`
 
-exports.toArray = function(obj) {
+export const toArray = obj => {
 	if (!(obj instanceof Array)) {
 		obj = [obj]
 	}
 	return obj
 }
 
-exports.getSessions = function(userDoc) {
-	var sessions = []
+export const getSessions = userDoc => {
+	const sessions = []
 	if (userDoc.session) {
-		Object.keys(userDoc.session).forEach(function(mySession) {
+		Object.keys(userDoc.session).forEach(mySession => {
 			sessions.push(mySession)
 		})
 	}
 	return sessions
 }
 
-exports.getExpiredSessions = function(userDoc, now) {
-	var sessions = []
+export const getExpiredSessions = (userDoc, now) => {
+	const sessions = []
 	if (userDoc.session) {
-		Object.keys(userDoc.session).forEach(function(mySession) {
+		Object.keys(userDoc.session).forEach(mySession => {
 			if (userDoc.session[mySession].expires <= now) {
 				sessions.push(mySession)
 			}
@@ -101,45 +86,44 @@ exports.getExpiredSessions = function(userDoc, now) {
 }
 
 // Takes a req object and returns the bearer token, or undefined if it is not found
-exports.getSessionToken = function(req) {
+export const getSessionToken = req => {
 	if (req.headers && req.headers.authorization) {
-		var parts = req.headers.authorization.split(' ')
-		if (parts.length == 2) {
-			var scheme = parts[0]
-			var credentials = parts[1]
+		const parts = req.headers.authorization.split(' ')
+		if (parts.length === 2) {
+			const scheme = parts[0]
+			const credentials = parts[1]
 			if (/^Bearer$/i.test(scheme)) {
-				var parse = credentials.split(':')
+				const parse = credentials.split(':')
 				if (parse.length < 2) {
-					return
+					return undefined
 				}
 				return parse[0]
 			}
 		}
 	}
+	return undefined
 }
 
 // Generates views for each registered provider in the user design doc
-exports.addProvidersToDesignDoc = function(config, ddoc) {
-	var providers = config.getItem('providers')
+export const addProvidersToDesignDoc = (config, ddoc) => {
+	const providers = config.getItem('providers')
 	if (!providers) {
 		return ddoc
 	}
-	var ddocTemplate =
-		'function(doc) {\n' +
-		'  if(doc.%PROVIDER% && doc.%PROVIDER%.profile) {\n' +
+	const ddocTemplate =
+		'function(doc) => {\n' +
+		'  if(doc.%PROVIDER% && doc.%PROVIDER%.profile) => {\n' +
 		'    emit(doc.%PROVIDER%.profile.id, null);\n' +
 		'  }\n' +
 		'}'
-	Object.keys(providers).forEach(function(provider) {
+	Object.keys(providers).forEach(provider => {
 		ddoc.auth.views[provider] = ddocTemplate.replace(new RegExp('%PROVIDER%', 'g'), provider)
 	})
 	return ddoc
 }
 
 // Capitalizes the first letter of a string
-exports.capitalizeFirstLetter = function(string) {
-	return string.charAt(0).toUpperCase() + string.slice(1)
-}
+export const capitalizeFirstLetter = string => string.charAt(0).toUpperCase() + string.slice(1)
 
 /**
  * Access nested JavaScript objects with string key
@@ -150,16 +134,16 @@ exports.capitalizeFirstLetter = function(string) {
  * @return {object|undefined} a reference to the requested key or undefined if not found
  */
 
-exports.getObjectRef = function(obj, str) {
+export const getObjectRef = (obj, str) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
-	var pList = str.split('.')
+	const pList = str.split('.')
 	while (pList.length) {
-		var n = pList.shift()
+		const n = pList.shift()
 		if (n in obj) {
 			obj = obj[n]
 		} else {
-			return
+			return undefined
 		}
 	}
 	return obj
@@ -175,13 +159,13 @@ exports.getObjectRef = function(obj, str) {
  * @return {*} the value the reference was set to
  */
 
-exports.setObjectRef = function(obj, str, val) {
+export const setObjectRef = (obj, str, val) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
-	var pList = str.split('.')
-	var len = pList.length
-	for (var i = 0; i < len - 1; i++) {
-		var elem = pList[i]
+	const pList = str.split('.')
+	const len = pList.length
+	for (let i = 0; i < len - 1; i += 1) {
+		const elem = pList[i]
 		if (!obj[elem]) {
 			obj[elem] = {}
 		}
@@ -199,18 +183,16 @@ exports.setObjectRef = function(obj, str, val) {
  * @return {boolean} true if successful
  */
 
-exports.delObjectRef = function(obj, str) {
+export const delObjectRef = (obj, str) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
-	var pList = str.split('.')
-	var len = pList.length
-	for (var i = 0; i < len - 1; i++) {
-		var elem = pList[i]
-		if (!obj[elem]) {
-			return false
+	const pList = str.split('.')
+	const len = pList.length
+	pList.forEach(elem => {
+		if (obj[elem]) {
+			obj = obj[elem]
 		}
-		obj = obj[elem]
-	}
+	})
 	delete obj[pList[len - 1]]
 	return true
 }
@@ -223,11 +205,11 @@ exports.delObjectRef = function(obj, str) {
  * @return {array} resulting array
  */
 
-exports.arrayUnion = function(a, b) {
-	var result = a.concat(b)
-	for (var i = 0; i < result.length; ++i) {
-		for (var j = i + 1; j < result.length; ++j) {
-			if (result[i] === result[j]) result.splice(j--, 1)
+export const arrayUnion = (a, b) => {
+	const result = a.concat(b)
+	for (let i = 0; i < result.length; i += 1) {
+		for (let j = i + 1; j < result.length; j += 1) {
+			if (result[i] === result[j]) result.splice((j -= 1), 1)
 		}
 	}
 	return result

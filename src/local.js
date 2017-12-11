@@ -1,23 +1,36 @@
-'use strict'
-var util = require('./util')
-var LocalStrategy = require('passport-local')
-var BearerStrategy = require('passport-http-bearer-sl').Strategy
+const util = require('./util')
+const LocalStrategy = require('passport-local')
+const BearerStrategy = require('passport-http-bearer-sl').Strategy
 
-module.exports = function(config, passport, user) {
+const local = (config, passport, user) => {
+	const handleFailedLogin = (userDoc, req, done) => {
+		const invalid = {
+			error: 'Unauthorized',
+			message: 'Invalid username or password'
+		}
+		return user.handleFailedLogin(userDoc, req).then(locked => {
+			if (locked) {
+				invalid.message = `Maximum failed login attempts exceeded. Your account has been locked for ${Math.round(
+					config.getItem('security.lockoutTime') / 60
+				)} minutes.`
+			}
+			return done(null, false, invalid)
+		})
+	}
 	// API token strategy
 	passport.use(
-		new BearerStrategy(function(tokenPass, done) {
-			var parse = tokenPass.split(':')
+		new BearerStrategy((tokenPass, done) => {
+			const parse = tokenPass.split(':')
 			if (parse.length < 2) {
 				done(null, false, { message: 'invalid token' })
 			}
-			var token = parse[0]
-			var password = parse[1]
+			const token = parse[0]
+			const password = parse[1]
 			user.confirmSession(token, password).then(
-				function(theuser) {
+				theuser => {
 					done(null, theuser)
 				},
-				function(err) {
+				err => {
 					if (err instanceof Error) {
 						done(err, false)
 					} else {
@@ -37,9 +50,9 @@ module.exports = function(config, passport, user) {
 				session: false,
 				passReqToCallback: true
 			},
-			function(req, username, password, done) {
+			(req, username, password, done) => {
 				user.get(username).then(
-					function(theuser) {
+					theuser => {
 						if (theuser) {
 							// Check if the account is locked
 							if (
@@ -60,7 +73,7 @@ module.exports = function(config, passport, user) {
 								})
 							}
 							util.verifyPassword(theuser.local, password).then(
-								function() {
+								() => {
 									// Check if the email has been confirmed if it is required
 									if (config.getItem('local.requireEmailConfirm') && !theuser.email) {
 										return done(null, false, {
@@ -71,14 +84,13 @@ module.exports = function(config, passport, user) {
 									// Success!!!
 									return done(null, theuser)
 								},
-								function(err) {
+								err => {
 									if (!err) {
 										// Password didn't authenticate
 										return handleFailedLogin(theuser, req, done)
-									} else {
-										// Hashing function threw an error
-										return done(err)
 									}
+									// Hashing function threw an error
+									return done(err)
 								}
 							)
 						} else {
@@ -88,29 +100,15 @@ module.exports = function(config, passport, user) {
 								message: 'Invalid username or password'
 							})
 						}
+						return undefined
 					},
-					function(err) {
+					err =>
 						// Database threw an error
-						return done(err)
-					}
+						done(err)
 				)
 			}
 		)
 	)
-
-	function handleFailedLogin(userDoc, req, done) {
-		var invalid = {
-			error: 'Unauthorized',
-			message: 'Invalid username or password'
-		}
-		return user.handleFailedLogin(userDoc, req).then(function(locked) {
-			if (locked) {
-				invalid.message =
-					'Maximum failed login attempts exceeded. Your account has been locked for ' +
-					Math.round(config.getItem('security.lockoutTime') / 60) +
-					' minutes.'
-			}
-			return done(null, false, invalid)
-		})
-	}
 }
+
+export default local

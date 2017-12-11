@@ -1,8 +1,8 @@
-var BPromise = require('bluebird')
-var redis = BPromise.promisifyAll(require('redis'))
+const BPromise = require('bluebird')
+const redis = BPromise.promisifyAll(require('redis'))
 
-function RedisAdapter(config) {
-	var redisClient
+const RedisAdapter = config => {
+	let redisClient
 
 	if (!config.getItem('session.redis.unix_socket')) {
 		if (config.getItem('session.redis.url')) {
@@ -26,35 +26,35 @@ function RedisAdapter(config) {
 
 	// Authenticate with Redis if necessary
 	if (config.getItem('session.redis.password')) {
-		redisClient.authAsync(config.getItem('session.redis.password')).catch(function(err) {
+		redisClient.authAsync(config.getItem('session.redis.password')).catch(err => {
 			throw new Error(err)
 		})
 	}
 
-	redisClient.on('error', function(err) {
-		console.error('Redis error: ' + err)
+	redisClient.on('error', err => {
+		console.error(`Redis error: ${err}`)
 	})
 
-	redisClient.on('connect', function() {
+	redisClient.on('connect', () => {
 		console.log('Redis is ready')
 	})
 	this._redisClient = redisClient
 }
 
-module.exports = RedisAdapter
+export default RedisAdapter
 
-RedisAdapter.prototype.storeKey = function(key, life, data) {
+RedisAdapter.prototype.storeKey = function storeKey(key, life, data) {
 	return this._redisClient.psetexAsync(key, life, data)
 }
 
-RedisAdapter.prototype.deleteKeys = function(keys) {
+RedisAdapter.prototype.deleteKeys = function deleteKeys(keys) {
 	return this._redisClient.delAsync(keys)
 }
 
-RedisAdapter.prototype.getKey = function(key) {
+RedisAdapter.prototype.getKey = function getKey(key) {
 	return this._redisClient.getAsync(key)
 }
 
-RedisAdapter.prototype.quit = function() {
+RedisAdapter.prototype.quit = function quit() {
 	return this._redisClient.quit()
 }
