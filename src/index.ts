@@ -15,8 +15,6 @@ import loadRoutes from './routes'
 import User from './user'
 import util from './util'
 
-// tslint:disable-next-line:no-var-requires
-const userDesignDocs = require('../designDocs/user-design')
 PouchDB.plugin(PouchUpsert)
 
 const init = async (
@@ -73,9 +71,14 @@ const init = async (
 	const oauth = Oauth(router, passport, user, config)
 
 	// Seed design docs for the user database
-	let userDesign = userDesignDocs
+	// tslint:disable-next-line:no-var-requires
+	let userDesign = require('../designDocs/user-design')
 	userDesign = util.addProvidersToDesignDoc(config, userDesign)
-	await seed(userDB, userDesign)
+	try {
+		await seed(userDB, userDesign)
+	} catch (error) {
+		console.log('failed seeding design docs!', error)
+	}
 	// Configure Passport local login and api keys
 	localConfig(config, passport, user)
 	// Load the routes
