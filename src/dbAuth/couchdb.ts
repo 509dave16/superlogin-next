@@ -77,36 +77,41 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		memberRoles: string[]
 	) => {
 		let changes = false
-		const secDoc = await db.get<ISecurityDoc>('_security')
+		try {
+			const secDoc = await db.get<ISecurityDoc>('_security')
 
-		if (!secDoc.admins) {
-			secDoc.admins = { names: [], roles: [] }
-		}
-		if (!secDoc.admins.roles) {
-			secDoc.admins.roles = []
-		}
-		if (!secDoc.members) {
-			secDoc.members = { names: [], roles: [] }
-		}
-		if (!secDoc.members.roles) {
-			secDoc.admins.roles = []
-		}
-		adminRoles.forEach(role => {
-			if (secDoc.admins.roles.indexOf(role) === -1) {
-				changes = true
-				secDoc.admins.roles.push(role)
+			if (!secDoc.admins) {
+				secDoc.admins = { names: [], roles: [] }
 			}
-		})
-		memberRoles.forEach(role => {
-			if (secDoc.members.roles.indexOf(role) === -1) {
-				changes = true
-				secDoc.members.roles.push(role)
+			if (!secDoc.admins.roles) {
+				secDoc.admins.roles = []
 			}
-		})
-		if (changes) {
-			return putSecurityCouch(db, secDoc)
+			if (!secDoc.members) {
+				secDoc.members = { names: [], roles: [] }
+			}
+			if (!secDoc.members.roles) {
+				secDoc.admins.roles = []
+			}
+			adminRoles.forEach(role => {
+				if (secDoc.admins.roles.indexOf(role) === -1) {
+					changes = true
+					secDoc.admins.roles.push(role)
+				}
+			})
+			memberRoles.forEach(role => {
+				if (secDoc.members.roles.indexOf(role) === -1) {
+					changes = true
+					secDoc.members.roles.push(role)
+				}
+			})
+			if (changes) {
+				return putSecurityCouch(db, secDoc)
+			}
+			return Promise.resolve(false)
+		} catch (error) {
+			console.log('error initializing security', error)
+			return Promise.resolve(false)
 		}
-		return Promise.resolve(false)
 	}
 
 	const authorizeKeys = async (
@@ -127,27 +132,32 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			// Convert keys to an array if it is just a string
 			keys = util.toArray(keys)
 		}
-		const doc = await db.get<ISecurityDoc>('_security')
+		try {
+			const doc = await db.get<ISecurityDoc>('_security')
 
-		secDoc = doc
-		if (!secDoc.members) {
-			secDoc.members = { names: [], roles: [] }
-		}
-		if (!secDoc.members.names) {
-			secDoc.members.names = []
-		}
-		let changes = false
-		keys.forEach(key => {
-			const index = secDoc.members.names.indexOf(key)
-			if (index === -1) {
-				secDoc.members.names.push(key)
-				changes = true
+			secDoc = doc
+			if (!secDoc.members) {
+				secDoc.members = { names: [], roles: [] }
 			}
-		})
-		if (changes) {
-			return putSecurityCouch(db, secDoc)
+			if (!secDoc.members.names) {
+				secDoc.members.names = []
+			}
+			let changes = false
+			keys.forEach(key => {
+				const index = secDoc.members.names.indexOf(key)
+				if (index === -1) {
+					secDoc.members.names.push(key)
+					changes = true
+				}
+			})
+			if (changes) {
+				return putSecurityCouch(db, secDoc)
+			}
+			return Promise.resolve(false)
+		} catch (error) {
+			console.log('error authorizing keys', error)
+			return Promise.resolve(false)
 		}
-		return Promise.resolve(false)
 	}
 
 	const deauthorizeKeys = async (

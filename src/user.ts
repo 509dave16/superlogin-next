@@ -1,3 +1,4 @@
+import BPromise from 'bluebird'
 import { EventEmitter } from 'events'
 import merge from 'lodash.merge'
 import Model from 'sofa-model'
@@ -309,7 +310,7 @@ const user = (
 			return Promise.resolve('already in use')
 		} catch (error) {
 			console.log('error validating email', error)
-			return Promise.reject(error)
+			throw new Error(error)
 		}
 	}
 
@@ -328,7 +329,7 @@ const user = (
 			return Promise.resolve('already in use')
 		} catch (error) {
 			console.log('error validating email/username', error)
-			return Promise.reject(error)
+			throw new Error(error)
 		}
 	}
 
@@ -558,21 +559,25 @@ const user = (
 		req = req || {}
 		const { ip } = req
 
+		await BPromise.resolve()
+
 		try {
 			console.log('getting results for provider', provider)
 			const results = await userDB.query(`auth/${provider}`, {
 				key: profile.id,
 				include_docs: true
 			})
-			console.log('results', results)
+			console.log('got results!', results)
 
 			if (results.rows.length > 0) {
 				userDoc = results.rows[0].doc as IUserDoc
 			} else {
+				console.log('new account')
 				newAccount = true
 				// tslint:disable-next-line:no-object-literal-type-assertion
 				userDoc = {} as IUserDoc
 				userDoc[provider] = {}
+				console.log('setting email')
 				if (profile.emails) {
 					userDoc.email = profile.emails[0].value
 				}
@@ -591,20 +596,25 @@ const user = (
 							'Your email is already in use. Try signing in first and then linking this account.',
 						status: 409
 					})
+				console.log('generating username')
 				// Now we need to generate a username
 				if (emailUsername) {
 					if (!userDoc.email) {
+						console.log('failing -> no email provided')
 						return Promise.reject({
 							error: 'No email provided',
 							message: `An email is required for registration, but ${provider} didn't supply one.`,
 							status: 400
 						})
 					}
+					console.log('validateEmailUsername')
 					const err = await validateEmailUsername(userDoc.email)
 					if (err) {
+						console.log('validateEmailUsername error', err)
 						return emailFail()
 					}
 					finalUsername = userDoc.email.toLowerCase()
+					console.log('finalUsername', finalUsername)
 				} else {
 					if (profile.username) {
 						baseUsername = profile.username.toLowerCase()
@@ -635,17 +645,22 @@ const user = (
 			}
 			delete userDoc[provider].profile._raw
 			if (newAccount) {
+				console.log('adding user dbs')
 				await addUserDBs(userDoc)
 			}
 			action = newAccount ? 'signup' : 'login'
+			console.log('logActivity')
 			await logActivity(userDoc._id, action, provider, req, userDoc)
+			console.log('processTransformations')
 			const finalUser = await processTransformations(
 				newAccount ? onCreateActions : onLinkActions,
 				userDoc,
 				provider
 			)
+			console.log('upsert')
 			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			if (action === 'signup') {
+				console.log('emit signup')
 				emitter.emit('signup', finalUser, provider)
 			}
 			return Promise.resolve(finalUser)

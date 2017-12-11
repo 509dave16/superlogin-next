@@ -119,15 +119,11 @@ const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} }
 	if (!providers) {
 		return ddoc
 	}
-	const ddocTemplate =
-		// tslint:disable-next-line:prefer-template
-		'function(doc) {\n' +
-		'  if(doc.%PROVIDER% && doc.%PROVIDER%.profile) {\n' +
-		'    emit(doc.%PROVIDER%.profile.id, null);\n' +
-		'  }\n' +
-		'}'
+	const ddocTemplate = (provider: string) =>
+		`function(doc){ if(doc.${provider} && doc.${provider}.profile) { emit(doc.${provider}.profile.id,null); } }`
+
 	Object.keys(providers).forEach(provider => {
-		ddoc.auth.views[provider] = ddocTemplate.replace(new RegExp('%PROVIDER%', 'g'), provider)
+		ddoc.auth.views[provider] = { map: ddocTemplate(provider) }
 	})
 	return ddoc
 }

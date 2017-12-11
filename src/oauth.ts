@@ -14,6 +14,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		operation: string,
 		accessToken: string
 	) => {
+		console.log('getLinkCallbackURLs', provider, operation, accessToken)
 		if (accessToken) {
 			accessToken = encodeURIComponent(accessToken)
 		}
@@ -46,11 +47,13 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		options: { callbackURL?: string; state: boolean; session: boolean },
 		operation: string
 	): RequestHandler => (req, res, next) => {
+		console.log('passportCallback 1')
 		const theOptions = Object.assign({}, options)
 		if (provider === 'linkedin') {
 			theOptions.state = true
 		}
 		const accessToken = req.query.bearer_token || req.query.state
+		console.log('accessToken', accessToken)
 		if (
 			accessToken &&
 			(stateRequired.indexOf(provider) > -1 ||
@@ -58,9 +61,11 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		) {
 			theOptions.state = accessToken
 		}
+		console.log('getLinkCallbackURLs')
 		theOptions.callbackURL = getLinkCallbackURLs(provider, req, operation, accessToken)
 		theOptions.session = false
-		passport.authenticate(provider, theOptions)(req, res, next)
+		console.log('passport.authenticate', theOptions)
+		return passport.authenticate(provider, theOptions)(req, res, next)
 	}
 
 	// Configures the passport.authenticate for the given access_token provider, passing in options
@@ -69,8 +74,10 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		options: { callbackURL?: string; state: boolean; session: boolean }
 	): RequestHandler => (req, res, next) => {
 		const theOptions = Object.assign({}, options)
+		console.log('passportTokenCallback 1', provider, options)
 		theOptions.session = false
-		passport.authenticate(`${provider}-token`, theOptions)(req, res, next)
+		console.log('passportTokenCallback 2', provider, options)
+		return passport.authenticate(`${provider}-token`, theOptions)(req, res, next)
 	}
 
 	// This is called after a user has successfully authenticated with a provider
@@ -82,6 +89,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		auth: { accessToken: string; refreshToken: string },
 		profile: {}
 	) => {
+		console.log('authHandler 1', provider, auth)
 		if (req.user && req.user._id && req.user.key) {
 			return user.linkSocial(req.user._id, provider, auth, profile, req)
 		}
@@ -89,8 +97,10 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 	}
 	// Gets the provider name from a callback path
 	const getProvider = (pathname: string) => {
+		console.log('getProvider 1', pathname)
 		const items = pathname.split('/')
 		const index = items.indexOf('callback')
+		console.log('getProvider 2', pathname, items, index)
 		if (index > 0) {
 			return items[index - 1]
 		}
@@ -99,22 +109,29 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 
 	// Gets the provider name from a callback path for access_token strategy
 	const getProviderToken = (pathname: string) => {
+		console.log('getProviderToken 1', pathname)
 		const items = pathname.split('/')
 		const index = items.indexOf('token')
+		console.log('getProviderToken 1', pathname, items, index)
 		if (index > 0) {
 			return items[index - 1]
 		}
 		return ''
 	}
 	// Function to initialize a session following authentication from a socialAuth provider
-	const initSession: RequestHandler = (req, res, next) => {
+	const initSession: RequestHandler = async (req, res, next) => {
+		console.log('initSession 1')
 		const provider = getProvider(req.path)
-		return user.createSession(req.user._id, provider, req).then((session: {}) => {
+		console.log('initSession 1', provider)
+		try {
+			console.log('createSession')
+			const session = await user.createSession(req.user._id, provider, req)
 			const results = {
 				error: null,
 				session,
 				link: null
 			}
+			console.log('results')
 			let template
 			if (config.getItem('testMode.oauthTest')) {
 				template = fs.readFileSync(
@@ -122,21 +139,34 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 					'utf8'
 				)
 			} else {
+				console.log('template readFileSync ')
 				template = fs.readFileSync(
 					path.join(__dirname, '../templates/oauth/auth-callback.ejs'),
 					'utf8'
 				)
+				console.log('template')
 			}
+			console.log('ejs.render')
 			const html = ejs.render(template, results)
-			res.status(200).send(html)
-		}, next)
+			console.log('html')
+			return res.status(200).send(html)
+		} catch (error) {
+			console.log('initSession failed', error)
+			return next()
+		}
 	}
 
 	// Function to initialize a session following authentication from a socialAuth provider
 	const initTokenSession: RequestHandler = async (req, res, next) => {
 		const provider = getProviderToken(req.path)
-		const session = await user.createSession(req.user._id, provider, req)
-		return res.status(200).json(session)
+		console.log('initTokenSession 1', provider)
+		try {
+			const session = await user.createSession(req.user._id, provider, req)
+			return res.status(200).json(session)
+		} catch (error) {
+			console.log('initTokenSession failed', error)
+			return next()
+		}
 	}
 
 	// Called after an account has been succesfully linked
@@ -147,6 +177,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			session: null,
 			link: provider
 		}
+		console.log('linkSuccess 1', provider)
 		let template
 		if (config.getItem('testMode.oauthTest')) {
 			template = fs.readFileSync(
@@ -179,6 +210,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		req: Request,
 		res: Response
 	) => {
+		console.log('oauthErrorHandler 1', err)
 		let template
 		if (config.getItem('testMode.oauthTest')) {
 			template = fs.readFileSync(
@@ -205,6 +237,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		req: Request,
 		res: Response
 	) => {
+		console.log('tokenAuthErrorHandler 1', err)
 		let status
 		if (req.user && req.user._id) {
 			status = 403
@@ -231,13 +264,17 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			authHandler: any
 		) => void
 	) => {
+		console.log('registerProvider 1', provider)
 		provider = provider.toLowerCase()
 		const configRef = `providers.${provider}`
 		if (config.getItem(`${configRef}.credentials`)) {
 			const credentials = config.getItem(`${configRef}.credentials`)
 			credentials.passReqToCallback = true
 			const options = config.getItem(`${configRef}.options`) || {}
+			console.log('calling configFunction', options)
 			configFunction(credentials, passport, authHandler)
+			console.log('configFunction done', passportCallback)
+			console.log('setting routes')
 			router.get(`/${provider}`, passportCallback(provider, options, 'login'))
 			router.get(
 				`/${provider}/callback`,

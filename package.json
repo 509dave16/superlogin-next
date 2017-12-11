@@ -1,7 +1,8 @@
 {
 	"name": "superlogin",
 	"version": "0.6.1",
-	"description": "Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
+	"description":
+		"Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
 	"main": "./lib/index.js",
 	"repository": {
 		"type": "git",
@@ -38,7 +39,7 @@
 	"homepage": "https://github.com/colinskow/superlogin",
 	"dependencies": {
 		"bluebird": "^3.3.4",
-		"couch-pwd": "github:zeMirco/couch-pwd",
+		"couch-pwd": "zemirco/couch-pwd",
 		"ejs": "^2.3.1",
 		"express": "^4.13.3",
 		"extend": "^3.0.0",
@@ -46,7 +47,7 @@
 		"lodash.merge": "^4.6.0",
 		"nodemailer": "^4.4.0",
 		"nodemailer-stub-transport": "^1.0.0",
-		"passport": "^0.4.0",
+		"passport": "^0.3.2",
 		"passport-http-bearer-sl": "^1.0.1",
 		"passport-local": "^1.0.0",
 		"pouchdb-node": "^6.3.4",
