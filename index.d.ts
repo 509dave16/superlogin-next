@@ -40,7 +40,7 @@ declare global {
 		user_id?: string
 		token?: string
 		issued?: number
-		expires?: number
+		expires: number
 		provider?: string
 		ip?: string
 		salt?: string

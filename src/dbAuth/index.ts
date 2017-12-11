@@ -55,16 +55,16 @@ const dbauth = (
 	// tslint:disable-next-line:no-any
 	const authorizeKeys = (
 		user_id: string,
-		db: any,
+		db: PouchDB.Database & { name: string },
 		keys: string[],
 		permissions?: string[],
 		roles?: string[]
 	) => adapter.authorizeKeys(user_id, db, keys, permissions, roles)
 
 	// tslint:disable-next-line:no-any
-	const deauthorizeKeys = (db: any, keys: string[]) => adapter.deauthorizeKeys(db, keys)
+	const deauthorizeKeys = (db: any, keys: string[] | string) => adapter.deauthorizeKeys(db, keys)
 
-	const deauthorizeUser = async (userDoc: IUserDoc, keys: string[]) => {
+	const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
 		// If keys is not specified we will deauthorize all of the users sessions
 		if (!keys) {
 			keys = util.getSessions(userDoc)
@@ -107,7 +107,7 @@ const dbauth = (
 				}
 				const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
 					skip_setup: true
-				})
+				}) as PouchDB.Database & { name: string }
 				return authorizeKeys(user_id, db, sessionKeys as string[], permissions, roles)
 			})
 		)
@@ -129,7 +129,7 @@ const dbauth = (
 			? `${config.getItem('userDBs.privatePrefix')}_`
 			: ''
 		let finalDBName: string
-		let newDB: PouchDB.Database
+		let newDB: PouchDB.Database & { name: string }
 		// Make sure we have a legal database name
 		let username = userDoc._id
 		username = getLegalDBName(username)
@@ -139,7 +139,9 @@ const dbauth = (
 			finalDBName = `${prefix + dbName}$${username}`
 		}
 		await createDB(finalDBName)
-		newDB = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`)
+		newDB = new PouchDB(
+			`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
+		) as PouchDB.Database & { name: string }
 		await adapter.initSecurity(newDB, adminRoles, memberRoles)
 
 		// Seed the design docs
@@ -314,6 +316,7 @@ const dbauth = (
 		authorizeUserSessions,
 		authorizeKeys,
 		deauthorizeKeys,
+		deauthorizeUser,
 		removeKeys,
 		storeKey
 	}

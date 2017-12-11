@@ -35,37 +35,30 @@ const Session = (config: IConfigure) => {
 		},
 		fetchToken: (key: string) =>
 			adapter.getKey(`${tokenPrefix}:${key}`).then(result => Promise.resolve(JSON.parse(result))),
-		storeToken: (token: ISession) => {
+		storeToken: async (token: ISession) => {
 			if (!token.password && token.salt && token.derived_key) {
-				return adapter
-					.storeKey(
-						`${tokenPrefix}:${token.key}`,
-						token.expires - Date.now(),
-						JSON.stringify(token)
-					)
-					.then(() => {
-						delete token.salt
-						delete token.derived_key
-						return Promise.resolve(token)
-					})
+				await adapter.storeKey(
+					`${tokenPrefix}:${token.key}`,
+					token.expires - Date.now(),
+					JSON.stringify(token)
+				)
+				delete token.salt
+				delete token.derived_key
 			}
-			return util
-				.hashPassword(token.password)
-				.then(hash => {
-					token.salt = hash.salt
-					token.derived_key = hash.derived_key
-					delete token.password
-					return adapter.storeKey(
-						`${tokenPrefix}:${token.key}`,
-						token.expires - Date.now(),
-						JSON.stringify(token)
-					)
-				})
-				.then(() => {
-					delete token.salt
-					delete token.derived_key
-					return Promise.resolve(token)
-				})
+			const hash = await util.hashPassword(token.password)
+
+			token.salt = hash.salt
+			token.derived_key = hash.derived_key
+			delete token.password
+			await adapter.storeKey(
+				`${tokenPrefix}:${token.key}`,
+				token.expires - Date.now(),
+				JSON.stringify(token)
+			)
+
+			delete token.salt
+			delete token.derived_key
+			return Promise.resolve(token)
 		},
 		quit: () => adapter.quit()
 	}

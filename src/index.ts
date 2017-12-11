@@ -12,7 +12,7 @@ import Middleware from './middleware'
 import Mailer from './mailer'
 import util from './util'
 import defaultConfig from 'config/default.config'
-import defaultPassport, { PassportStatic } from 'passport'
+import defaultPassport from 'passport'
 import PouchUpsert from 'pouchdb-upsert'
 
 const userDesignDocs = require('../designDocs/user-design')
@@ -20,9 +20,10 @@ PouchDB.plugin(PouchUpsert)
 
 const init = async (
 	configData: IConfig,
-	passport?: PassportStatic,
-	userDB?: PouchDB.Database,
-	couchAuthDB?: PouchDB.Database
+	// tslint:disable-next-line:no-any
+	passport?: any,
+	userDB?: PouchDB.Database & { name: string },
+	couchAuthDB?: PouchDB.Database & { name: string }
 ) => {
 	const config = Configure(configData, defaultConfig)
 	const router = express.Router()
@@ -43,7 +44,7 @@ const init = async (
 	if (!userDB && config.getItem('dbServer.userDB')) {
 		userDB = new PouchDB(
 			util.getFullDBURL(config.getItem('dbServer'), config.getItem('dbServer.userDB'))
-		)
+		) as PouchDB.Database & { name: string }
 	}
 	if (
 		!couchAuthDB &&
@@ -52,7 +53,7 @@ const init = async (
 	) {
 		couchAuthDB = new PouchDB(
 			util.getFullDBURL(config.getItem('dbServer'), config.getItem('dbServer.couchAuthDB'))
-		)
+		) as PouchDB.Database & { name: string }
 	}
 	if (!userDB || typeof userDB !== 'object') {
 		throw new Error(
@@ -61,7 +62,13 @@ const init = async (
 	}
 
 	const mailer = Mailer(config)
-	const user = User(config, userDB, couchAuthDB, mailer, emitter)
+	const user = User(
+		config,
+		userDB,
+		couchAuthDB as PouchDB.Database & { name: string },
+		mailer,
+		emitter
+	)
 	const oauth = Oauth(router, passport, user, config)
 
 	// Seed design docs for the user database

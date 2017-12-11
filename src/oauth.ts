@@ -230,9 +230,9 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 
 	// Framework to register OAuth providers with passport
 	const registerProvider = (
+		// tslint:disable-next-line:no-any
 		provider: string,
 		configFunction: (
-			s1: {} | null,
 			credentials: string,
 			// tslint:disable-next-line:no-any
 			passport: any,
@@ -246,7 +246,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			const credentials = config.getItem(`${configRef}.credentials`)
 			credentials.passReqToCallback = true
 			const options = config.getItem(`${configRef}.options`) || {}
-			configFunction(null, credentials, passport, authHandler)
+			configFunction(credentials, passport, authHandler)
 			router.get(`/${provider}`, passportCallback(provider, options, 'login'))
 			router.get(
 				`/${provider}/callback`,

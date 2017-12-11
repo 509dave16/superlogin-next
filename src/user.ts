@@ -215,8 +215,7 @@ const user = (
 		matches: 'confirmPassword'
 	}
 
-	passwordConstraints = extend(
-		true,
+	passwordConstraints = Object.assign(
 		{},
 		passwordConstraints,
 		config.getItem('local.passwordConstraints')
@@ -297,7 +296,7 @@ const user = (
 		}
 	}
 
-	const onCreate = (fn: () => Promise<void>) => {
+	const onCreate = (fn: () => Promise<IUserDoc>) => {
 		if (typeof fn === 'function') {
 			onCreateActions.push(fn)
 		} else {
@@ -305,7 +304,7 @@ const user = (
 		}
 	}
 
-	const onLink = (fn: () => Promise<void>) => {
+	const onLink = (fn: () => Promise<IUserDoc>) => {
 		if (typeof fn === 'function') {
 			onLinkActions.push(fn)
 		} else {
@@ -342,7 +341,7 @@ const user = (
 		let finalUserModel = userModel
 		const newUserModel = config.getItem('userModel')
 		if (typeof newUserModel === 'object') {
-			let whitelist: string[]
+			let whitelist: string[] = []
 			if (newUserModel.whitelist) {
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
@@ -396,7 +395,7 @@ const user = (
 				userDB.upsert(finalNewUser._id, oldUser => merge({}, oldUser, finalNewUser))
 			)
 			.then((result: IUserDoc) => {
-				newUser._rev = result.rev
+				newUser._rev = result.rev as string
 				if (!config.getItem('local.sendConfirmEmail')) {
 					return Promise.resolve()
 				}
@@ -526,7 +525,7 @@ const user = (
 		provider: string,
 		auth: string,
 		profile: IProfile,
-		req: {}
+		req: { ip: string }
 	) => {
 		req = req || {}
 		let linkUser: IUserDoc
@@ -1049,7 +1048,7 @@ const user = (
 			req,
 			verifyEmailUser
 		)
-		return userDB.upsert(finalUser._id, oldUser => {
+		return userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
 			delete oldUser.unverifiedEmail
 			return merge({}, oldUser, finalUser)
 		})
@@ -1184,7 +1183,6 @@ const user = (
 	}
 
 	const logoutUser = async (user_id: string, session_id: string) => {
-		let promise
 		let logoutUser: IUserDoc
 		if (user_id) {
 			logoutUser = await userDB.get<IUserDoc>(user_id)
@@ -1345,7 +1343,7 @@ const user = (
 
 	const removeExpiredKeys = dbAuth.removeExpiredKeys.bind(dbAuth)
 
-	const confirmSession = (key, password) => session.confirmToken(key, password)
+	const confirmSession = (key: string, password: string) => session.confirmToken(key, password)
 
 	const quitRedis = session.quit
 
@@ -1445,7 +1443,8 @@ const user = (
 }
 
 declare global {
-	type User = typeof user
+	// tslint:disable-next-line:no-any
+	type User = any
 }
 
 export default user
