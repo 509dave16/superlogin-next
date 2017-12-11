@@ -81,7 +81,7 @@ const init = async (
 	// Load the routes
 	loadRoutes(config, router, passport, user)
 
-	const superlogin = {
+	return {
 		config,
 		router,
 		mailer,
@@ -117,16 +117,13 @@ const init = async (
 		removeExpiredKeys: user.removeExpiredKeys,
 		sendEmail: mailer.sendEmail,
 		quitRedis: user.quitRedis,
+		on: emitter.on,
 		// authentication middleware
 		requireAuth: middleware.requireAuth,
 		requireRole: middleware.requireRole,
 		requireAnyRole: middleware.requireAnyRole,
 		requireAllRoles: middleware.requireAllRoles
 	}
-	for (const key of emitter) {
-		superlogin[key] = emitter[key]
-	} // Inherit emitter
-	return superlogin
 }
 
 export default init

@@ -1,4 +1,4 @@
 declare module 'pouchdb-seed-design' {
-	const seed: any
+	const seed: (userDB: any, userDesign: any) => Promise<any>
 	export default seed
 }

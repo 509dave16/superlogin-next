@@ -178,7 +178,7 @@ const dbauth = (
 				designDocs.map(async ddName => {
 					const dDoc = getDesignDoc(ddName)
 					if (dDoc) {
-						seed(newDB, dDoc)
+						await seed(newDB, dDoc)
 					} else {
 						console.warn(`Failed to locate design doc: ${ddName}`)
 						return Promise.resolve()

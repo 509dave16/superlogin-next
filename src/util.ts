@@ -242,5 +242,6 @@ export default {
 	getObjectRef,
 	setObjectRef,
 	delObjectRef,
-	arrayUnion
+	arrayUnion,
+	toArray
 }
