@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
 import request from 'superagent'

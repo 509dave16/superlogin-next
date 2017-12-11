@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import { EventEmitter } from 'events'
 import merge from 'lodash.merge'
 import Model from 'sofa-model'

@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import pwd from 'couch-pwd'
 import crypto from 'crypto'
 import { Request } from 'express'

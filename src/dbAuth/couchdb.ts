@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import util from '../util'
 
 const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {

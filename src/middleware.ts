@@ -1,3 +1,5 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
 // Contains middleware useful for securing your routes
 import { RequestHandler } from 'express'
 import { PassportStatic } from 'passport'

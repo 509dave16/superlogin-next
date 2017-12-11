@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 const MemoryAdapter = (): IAdapter => {
 	const _keys = {}
 	const _expires = {}

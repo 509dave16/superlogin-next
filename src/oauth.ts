@@ -1,3 +1,5 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
 import ejs from 'ejs'
 import { Request, RequestHandler, Response, Router } from 'express'
 import fs from 'fs'

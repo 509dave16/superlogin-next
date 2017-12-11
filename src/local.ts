@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import { Request } from 'express'
 import { PassportStatic } from 'passport'
 import Bearer from 'passport-http-bearer-sl'
@@ -61,59 +64,56 @@ const local = (config: IConfigure, passport: PassportStatic, user: User) => {
 				passReqToCallback: true
 			},
 			(req: Request, username: string, password: string, done: IDoneFunc) => {
-				user.get(username).then(
-					(theuser: IUserDoc) => {
-						if (theuser) {
-							// Check if the account is locked
-							if (
-								theuser.local &&
-								theuser.local.lockedUntil &&
-								theuser.local.lockedUntil > Date.now()
-							) {
-								return done(null, false, {
-									error: 'Unauthorized',
-									message:
-										'Your account is currently locked. Please wait a few minutes and try again.'
-								})
-							}
-							if (!theuser.local || !theuser.local.derived_key) {
-								return done(null, false, {
-									error: 'Unauthorized',
-									message: 'Invalid username or password'
-								})
-							}
-							util.verifyPassword(theuser.local, password).then(
-								() => {
-									// Check if the email has been confirmed if it is required
-									if (config.getItem('local.requireEmailConfirm') && !theuser.email) {
-										return done(null, false, {
-											error: 'Unauthorized',
-											message: 'You must confirm your email address.'
-										})
-									}
-									// Success!!!
-									return done(null, theuser)
-								},
-								(err: string) => {
-									if (!err) {
-										// Password didn't authenticate
-										return handleFailedLogin(theuser, req, done)
-									}
-									// Hashing function threw an error
-									return done(err)
-								}
-							)
-						} else {
-							// user not found
+				user.get(username).then((theuser: IUserDoc) => {
+					if (theuser) {
+						// Check if the account is locked
+						if (
+							theuser.local &&
+							theuser.local.lockedUntil &&
+							theuser.local.lockedUntil > Date.now()
+						) {
+							return done(null, false, {
+								error: 'Unauthorized',
+								message:
+									'Your account is currently locked. Please wait a few minutes and try again.'
+							})
+						}
+						if (!theuser.local || !theuser.local.derived_key) {
 							return done(null, false, {
 								error: 'Unauthorized',
 								message: 'Invalid username or password'
 							})
 						}
-						return undefined
-					},
-					done
-				)
+						util.verifyPassword(theuser.local, password).then(
+							() => {
+								// Check if the email has been confirmed if it is required
+								if (config.getItem('local.requireEmailConfirm') && !theuser.email) {
+									return done(null, false, {
+										error: 'Unauthorized',
+										message: 'You must confirm your email address.'
+									})
+								}
+								// Success!!!
+								return done(null, theuser)
+							},
+							(err: string) => {
+								if (!err) {
+									// Password didn't authenticate
+									return handleFailedLogin(theuser, req, done)
+								}
+								// Hashing function threw an error
+								return done(err)
+							}
+						)
+					} else {
+						// user not found
+						return done(null, false, {
+							error: 'Unauthorized',
+							message: 'Invalid username or password'
+						})
+					}
+					return undefined
+				}, done)
 			}
 		)
 	)

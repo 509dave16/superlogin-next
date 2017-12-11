@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import redisBase, { RedisClient } from 'redis'
 
 const redis = Promise.promisifyAll(redisBase)

@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import FileAdapter from './sessionAdapters/FileAdapter'
 import MemoryAdapter from './sessionAdapters/MemoryAdapter'
 import RedisAdapter from './sessionAdapters/RedisAdapter'

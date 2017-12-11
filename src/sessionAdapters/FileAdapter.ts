@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import fsBase from 'fs-extra'
 import path from 'path'
 const fs = Promise.promisifyAll(fsBase)

@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import request from 'superagent'
 import url from 'url'
 import util from './../util'

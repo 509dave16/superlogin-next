@@ -1,3 +1,5 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
 import ejs, { Data } from 'ejs'
 import fs from 'fs'
 import nodemailer, { Transporter } from 'nodemailer'

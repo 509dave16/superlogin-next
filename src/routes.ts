@@ -1,3 +1,6 @@
+// tslint:disable-next-line:no-var-requires
+global.Promise = require('bluebird')
+
 import { Router } from 'express'
 import { Passport } from 'passport'
 import util from './util'
@@ -31,9 +34,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 	)
 
 	router.post('/refresh', passport.authenticate('bearer', { session: false }), (req, res, next) =>
-		user
-			.refreshSession(req.user.key)
-			.then((mySession: {}) => res.status(200).json(mySession), next)
+		user.refreshSession(req.user.key).then((mySession: {}) => res.status(200).json(mySession), next)
 	)
 
 	router.post('/logout', (req, res, next) => {
@@ -88,52 +89,40 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 
 	// Setting up the auth api
 	router.post('/register', (req, res, next) => {
-		user.create(req.body, req).then(
-			(newUser: IUserDoc) => {
-				if (config.getItem('security.loginOnRegistration')) {
-					return user
-						.createSession(newUser._id, 'local', req.ip)
-						.then((mySession: {}) => res.status(200).json(mySession), next)
-				}
-				return res.status(201).json({ success: 'User created.' })
-			},
-			next
-		)
+		user.create(req.body, req).then((newUser: IUserDoc) => {
+			if (config.getItem('security.loginOnRegistration')) {
+				return user
+					.createSession(newUser._id, 'local', req.ip)
+					.then((mySession: {}) => res.status(200).json(mySession), next)
+			}
+			return res.status(201).json({ success: 'User created.' })
+		}, next)
 	})
 
 	router.post('/forgot-password', (req, res, next) =>
 		user
 			.forgotPassword(req.body.email, req)
-			.then(
-				() => res.status(200).json({ success: 'Password recovery email sent.' }),
-				next
-			)
+			.then(() => res.status(200).json({ success: 'Password recovery email sent.' }), next)
 	)
 
 	router.post('/password-reset', (req, res, next) => {
-		user.resetPassword(req.body, req).then(
-			(currentUser: IUserDoc) => {
-				if (config.getItem('security.loginOnPasswordReset')) {
-					return user
-						.createSession(currentUser._id, 'local', req.ip)
-						.then((mySession: {}) => res.status(200).json(mySession), next)
-				}
-				return res.status(200).json({ success: 'Password successfully reset.' })
-			},
-			next
-		)
+		user.resetPassword(req.body, req).then((currentUser: IUserDoc) => {
+			if (config.getItem('security.loginOnPasswordReset')) {
+				return user
+					.createSession(currentUser._id, 'local', req.ip)
+					.then((mySession: {}) => res.status(200).json(mySession), next)
+			}
+			return res.status(200).json({ success: 'Password successfully reset.' })
+		}, next)
 	})
 
 	router.post(
 		'/password-change',
 		passport.authenticate('bearer', { session: false }),
 		(req, res, next) => {
-			user.changePasswordSecure(req.user._id, req.body, req).then(
-				() => {
-					res.status(200).json({ success: 'password changed' })
-				},
-				next
-			)
+			user.changePasswordSecure(req.user._id, req.body, req).then(() => {
+				res.status(200).json({ success: 'password changed' })
+			}, next)
 		}
 	)
 
@@ -217,12 +206,9 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 		'/change-email',
 		passport.authenticate('bearer', { session: false }),
 		(req, res, next) => {
-			user.changeEmail(req.user._id, req.body.newEmail, req).then(
-				() => {
-					res.status(200).json({ ok: true, success: 'Email changed' })
-				},
-				next
-			)
+			user.changeEmail(req.user._id, req.body.newEmail, req).then(() => {
+				res.status(200).json({ ok: true, success: 'Email changed' })
+			}, next)
 		}
 	)
 
