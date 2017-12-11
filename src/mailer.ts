@@ -4,7 +4,7 @@ import nodemailer, { Transporter } from 'nodemailer'
 import ejs, { Data } from 'ejs'
 import stubTransport from 'nodemailer-stub-transport'
 
-const mailer = (config: IConfigure) => {
+const mailer = (config: IConfigure): IMailer => {
 	// Initialize the transport mechanism with nodermailer
 	let transporter: Transporter
 	const customTransport = config.getItem('mailer.transport')
@@ -59,7 +59,9 @@ const mailer = (config: IConfigure) => {
 }
 
 declare global {
-	type Mailer = typeof mailer
+	interface IMailer {
+		sendEmail(templateName: string, email: string, locals: Data): void
+	}
 }
 
 export default mailer

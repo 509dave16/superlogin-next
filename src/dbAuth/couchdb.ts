@@ -72,10 +72,13 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		}
 	}
 
-	// tslint:disable-next-line:no-any
-	const initSecurity = (db: any, adminRoles: string[], memberRoles: string[]) => {
+	const initSecurity = (
+		db: PouchDB.Database & { name: string },
+		adminRoles: string[],
+		memberRoles: string[]
+	) => {
 		let changes = false
-		return db.get('_security').then((secDoc: ISecurityDoc) => {
+		return db.get<ISecurityDoc>('_security').then(secDoc => {
 			if (!secDoc.admins) {
 				secDoc.admins = { names: [], roles: [] }
 			}
@@ -107,8 +110,11 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		})
 	}
 
-	// tslint:disable-next-line:no-any
-	const authorizeKeys = (user_id: string, db: any, keys: string[]) => {
+	const authorizeKeys = (
+		user_id: string,
+		db: PouchDB.Database & { name: string },
+		keys: string[]
+	) => {
 		let secDoc: ISecurityDoc
 		// Check if keys is an object and convert it to an array
 		if (typeof keys === 'object' && !Array.isArray(keys)) {
@@ -120,7 +126,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		}
 		// Convert keys to an array if it is just a string
 		keys = util.toArray(keys)
-		return db.get('_security').then((doc: ISecurityDoc) => {
+		return db.get<ISecurityDoc>('_security').then(doc => {
 			secDoc = doc
 			if (!secDoc.members) {
 				secDoc.members = { names: [], roles: [] }
@@ -143,12 +149,11 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		})
 	}
 
-	// tslint:disable-next-line:no-any
-	const deauthorizeKeys = async (db: any, keys: string[]) => {
+	const deauthorizeKeys = async (db: PouchDB.Database & { name: string }, keys: string[]) => {
 		let secDoc: ISecurityDoc
 		keys = util.toArray(keys)
 		try {
-			const doc = await db.get('_security')
+			const doc = await db.get<ISecurityDoc>('_security')
 			secDoc = doc
 			if (!secDoc.members || !secDoc.members.names) {
 				return Promise.resolve(false)
@@ -185,19 +190,19 @@ declare global {
 		initSecurity(db: any, adminRoles: string[], memberRoles: string[]): void
 		authorizeKeys(
 			user_id: string,
-			db: any,
+			db: PouchDB.Database & { name: string },
 			keys: string[],
-			permissions: string[],
-			roles: string[]
+			permissions?: string[],
+			roles?: string[]
 		): void
-		deauthorizeKeys(db: any, keys: string[]): void
-		removeKeys(keys: string[]): void
+		deauthorizeKeys(db: PouchDB.Database & { name: string }, keys: string[]): void
+		removeKeys(keys: string[] | string): void
 		storeKey(
 			username: string,
 			key: string,
 			password: string,
-			expires: number,
-			roles: string[]
+			expires?: number,
+			roles?: string[]
 		): void
 	}
 }

@@ -1,35 +1,36 @@
-const url = require('url')
-const BPromise = require('bluebird')
-const request = require('superagent')
-const util = require('./../util')
+import url from 'url'
+import BPromise from 'bluebird'
+import request from 'superagent'
+import util from './../util'
 
-const getSecurityUrl = (db: { name: string }) => {
+const getSecurityUrl = (db: PouchDB.Database & { name: string }) => {
 	const parsedUrl = url.parse(db.name)
 	parsedUrl.pathname += '/_security'
 	return url.format(parsedUrl)
 }
 
-export const getAPIKey = (db: { name: string }) => {
+const getAPIKey = async (db: PouchDB.Database & { name: string }) => {
 	const parsedUrl = url.parse(db.name)
 	parsedUrl.pathname = '/_api/v2/api_keys'
 	const finalUrl = url.format(parsedUrl)
-	return BPromise.fromNode((callback: () => void) => {
-		request
-			.post(finalUrl)
-			//       .set(db.getHeaders())
-			.end(callback)
-	}).then((res: { text: string }) => {
-		const result = JSON.parse(res.text)
-		if (result.key && result.password && result.ok === true) {
-			return Promise.resolve(result)
+	try {
+		const res = await request.post(finalUrl)
+		if (res) {
+			const result: { key: string; password: string; ok: boolean } = JSON.parse(res.text)
+			if (result.key && result.password && result.ok === true) {
+				return result
+			}
+			return Promise.reject(result)
 		}
-		return Promise.reject(result)
-	})
+	} catch (error) {
+		console.log('error getting api key!', error)
+		return Promise.reject(error)
+	}
 }
 
-export const getSecurityCloudant = (db: { name: string }) => {
+const getSecurityCloudant = (db: PouchDB.Database & { name: string }) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode((callback: () => void) => {
+	return BPromise.fromNode(callback => {
 		request
 			.get(finalUrl)
 			//       .set(db.getHeaders())
@@ -37,9 +38,9 @@ export const getSecurityCloudant = (db: { name: string }) => {
 	}).then((res: { text: string }) => Promise.resolve(JSON.parse(res.text)))
 }
 
-export const putSecurityCloudant = (db: { name: string }, doc: {}) => {
+const putSecurityCloudant = (db: PouchDB.Database & { name: string }, doc: {}) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode((callback: () => void) => {
+	return BPromise.fromNode(callback => {
 		request
 			.put(finalUrl)
 			//       .set(db.getHeaders())
@@ -49,21 +50,18 @@ export const putSecurityCloudant = (db: { name: string }, doc: {}) => {
 }
 
 // This is not needed with Cloudant
-export const storeKey = () => Promise.resolve()
+const storeKey = () => Promise.resolve()
 
 // This is not needed with Cloudant
-export const removeKeys = () => Promise.resolve()
+const removeKeys = () => Promise.resolve()
 
-export const initSecurity = (
-	db: {
-		name: string
-		get: (schema: string) => Promise<ISecurityDoc>
-	},
+const initSecurity = (
+	db: PouchDB.Database & { name: string },
 	adminRoles: string[],
 	memberRoles: string[]
 ) => {
 	let changes = false
-	return db.get('_security').then(secDoc => {
+	return db.get<ISecurityDoc>('_security').then(secDoc => {
 		if (!secDoc.admins) {
 			secDoc.admins = { names: [], roles: [] }
 		}
@@ -95,9 +93,9 @@ export const initSecurity = (
 	})
 }
 
-export const authorizeKeys = (
+const authorizeKeys = (
 	user_id: string,
-	db: { name: string },
+	db: PouchDB.Database & { name: string },
 	keys: string[],
 	permissions: string[],
 	roles: string[]
@@ -131,7 +129,7 @@ export const authorizeKeys = (
 	})
 }
 
-export const deauthorizeKeys = (db: { name: string }, keys: string[]) => {
+const deauthorizeKeys = (db: PouchDB.Database & { name: string }, keys: string[]) => {
 	// cast keys to an Array
 	keys = util.toArray(keys)
 	return getSecurityCloudant(db).then((secDoc: { cloudant: {} }) => {

@@ -25,9 +25,9 @@ const Session = (config: IConfigure) => {
 			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
 			return adapter.deleteKeys(entries)
 		},
-		deleteTokens: (keys: string[]) => {
+		deleteTokens: (keys: string | string[]) => {
 			const entries: string[] = []
-			if (!(keys instanceof Array)) {
+			if (!Array.isArray(keys)) {
 				keys = [keys]
 			}
 			keys.forEach(key => entries.push(`${tokenPrefix}:${key}`))
@@ -35,13 +35,7 @@ const Session = (config: IConfigure) => {
 		},
 		fetchToken: (key: string) =>
 			adapter.getKey(`${tokenPrefix}:${key}`).then(result => Promise.resolve(JSON.parse(result))),
-		storeToken: (token: {
-			password: string
-			salt: string
-			derived_key: string
-			expires: number
-			key: string
-		}) => {
+		storeToken: (token: ISession) => {
 			if (!token.password && token.salt && token.derived_key) {
 				return adapter
 					.storeKey(
@@ -59,7 +53,7 @@ const Session = (config: IConfigure) => {
 				.hashPassword(token.password)
 				.then(hash => {
 					token.salt = hash.salt
-					token.derived_key = hash.derivedKey
+					token.derived_key = hash.derived_key
 					delete token.password
 					return adapter.storeKey(
 						`${tokenPrefix}:${token.key}`,

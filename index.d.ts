@@ -35,28 +35,75 @@ declare global {
 		}
 	}
 
-	interface IUserDoc {
+	interface ISession {
+		userDBs?: { [name: string]: string }
+		user_id?: string
+		token?: string
+		issued?: number
+		expires?: number
+		provider?: string
+		ip?: string
+		salt?: string
+		derived_key?: string
+		_id: string
+		provider?: string
+		key: string
+		password: string
+		issued: number
+		expires: number
+		roles: string[]
+	}
+
+	interface IProfile {
+		[key: string]: any
+		displayName: string
+		username: string
+		id: string
+		email: string
+		emails: { value: string }[]
+	}
+
+	interface IActivity {
+		timestamp: string
+		action: string
+		provider: string
+		ip: string
+	}
+
+	interface IUserDoc extends ISession {
+		activity?: IActivity[] | IActivity
+		_rev: string
+		rev?: string
+		unverifiedEmail: { email: string; token: string }
+		password: string
+		confirmPassword: string
 		name: string
 		email: string
 		_id: string
 		type: string
 		roles: string[]
 		providers: string[]
-		profile: {
-			[key: string]: any
+		profile: IProfile
+		forgotPassword: {
+			expires: number
+			token: string
+			issued: number
+			expires: number
 		}
 		local: {
-			salt: string
-			derived_key: string
-			lockedUntil: number
+			iterations?: string
+			failedLoginAttempts?: number
+			salt?: string
+			derived_key?: string
+			lockedUntil?: number
 		}
 		signUp: {
 			provider: string
 			timestamp: string
 			ip: string
 		}
-		session: { [name: string]: { expires: number } }
-		personalDBs: { [dbName: string]: { name: string; type: string } }
+		session: { [name: string]: { expires?: number } }
+		personalDBs: { [dbName: string]: { name: string; type?: string } }
 	}
 
 	interface ISLInstance {

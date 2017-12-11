@@ -14,33 +14,33 @@ export const hashToken = (token: string) =>
 		.digest('hex')
 
 export const hashPassword = (password: string) =>
-	new Promise<{ salt: string; derivedKey: string }>((resolve, reject) => {
+	new Promise<{ salt: string; derived_key: string }>((resolve, reject) => {
 		pwd.hash(password, (err: string, salt: string, hash: string) => {
 			if (err) {
 				return reject(err)
 			}
 			return resolve({
 				salt,
-				derivedKey: hash
+				derived_key: hash
 			})
 		})
 	})
 
 export const verifyPassword = (
-	hashObj: { iterations: string; salt: string; derivedKey: string },
+	hashObj: { iterations?: string; salt?: string; derived_key?: string },
 	password: string
 ) => {
 	// tslint:disable-next-line:no-any
 	const getHash: any = BPromise.promisify(pwd.hash, { context: pwd })
-	const { iterations, salt, derivedKey } = hashObj
+	const { iterations, salt, derived_key } = hashObj
 	if (iterations) {
 		pwd.iterations(iterations)
 	}
-	if (!salt || !derivedKey) {
+	if (!salt || !derived_key) {
 		return Promise.reject(false)
 	}
 	return getHash(password, salt).then((hash: string) => {
-		if (hash === derivedKey) {
+		if (hash === derived_key) {
 			return Promise.resolve(true)
 		}
 		return Promise.reject(false)
@@ -70,7 +70,7 @@ export const getFullDBURL = (
 ) => `${getDBURL(dbConfig)}/${dbName}`
 
 // tslint:disable-next-line:no-any
-export const toArray = (obj: any[]) => {
+export const toArray = <T>(obj: T | T[]): T[] => {
 	if (!(obj instanceof Array)) {
 		obj = [obj]
 	}
@@ -88,7 +88,7 @@ export const getSessions = (userDoc: IUserDoc) => {
 }
 
 export const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
-	const sessions: {}[] = []
+	const sessions: string[] = []
 	if (userDoc.session) {
 		Object.keys(userDoc.session).forEach(mySession => {
 			if (userDoc.session[mySession].expires <= now) {
@@ -175,7 +175,7 @@ export const getObjectRef = (obj: {}, str: string) => {
  * @return {*} the value the reference was set to
  */
 
-export const setObjectRef = (obj: {}, str: string, val: string) => {
+export const setObjectRef = (obj: {}, str: string, val: string | boolean) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -221,7 +221,7 @@ export const delObjectRef = (obj: {}, str: string) => {
  * @return {array} resulting array
  */
 
-export const arrayUnion = (a: {}[], b: string) => {
+export const arrayUnion = (a: any[], b: string) => {
 	const result = a.concat(b)
 	for (let i = 0; i < result.length; i += 1) {
 		for (let j = i + 1; j < result.length; j += 1) {

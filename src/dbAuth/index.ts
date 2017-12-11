@@ -27,7 +27,11 @@ const getLegalDBName = (input: string) => {
 	return output
 }
 
-const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: PouchDB.Database) => {
+const dbauth = (
+	config: IConfigure,
+	userDB: PouchDB.Database & { name: string },
+	couchAuthDB: PouchDB.Database
+) => {
 	const cloudant = config.getItem('dbServer.cloudant')
 
 	let adapter: IDBAdapter
@@ -42,19 +46,19 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 		username: string,
 		key: string,
 		password: string,
-		expires: number,
-		roles: string[]
+		expires?: number,
+		roles?: string[]
 	) => adapter.storeKey(username, key, password, expires, roles)
 
-	const removeKeys = (keys: string[]) => adapter.removeKeys(keys)
+	const removeKeys = (keys: string | string[]) => adapter.removeKeys(keys)
 
 	// tslint:disable-next-line:no-any
 	const authorizeKeys = (
 		user_id: string,
 		db: any,
 		keys: string[],
-		permissions: string[],
-		roles: string[]
+		permissions?: string[],
+		roles?: string[]
 	) => adapter.authorizeKeys(user_id, db, keys, permissions, roles)
 
 	// tslint:disable-next-line:no-any
@@ -87,8 +91,8 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 
 	const authorizeUserSessions = async (
 		user_id: string,
-		personalDBs: string[],
-		sessionKeys: string[],
+		personalDBs: {},
+		sessionKeys: string | string[],
 		roles: string[]
 	) => {
 		sessionKeys = util.toArray(sessionKeys)
@@ -104,7 +108,7 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 				const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
 					skip_setup: true
 				})
-				return authorizeKeys(user_id, db, sessionKeys, permissions, roles)
+				return authorizeKeys(user_id, db, sessionKeys as string[], permissions, roles)
 			})
 		)
 	}
@@ -112,11 +116,11 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 	const addUserDB = async (
 		userDoc: IUserDoc,
 		dbName: string,
-		designDocs: string[],
-		type: string,
-		permissions: string[],
-		adminRoles: string[],
-		memberRoles: string[]
+		designDocs?: string[],
+		type?: string,
+		permissions?: string[],
+		adminRoles?: string[],
+		memberRoles?: string[]
 	) => {
 		adminRoles = adminRoles || []
 		memberRoles = memberRoles || []
@@ -156,7 +160,8 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 		const keysToAuthorize: string[] = []
 		if (userDoc.session) {
 			Object.keys(userDoc.session).forEach(key => {
-				if (userDoc.session[key].expires > Date.now()) {
+				const { expires } = userDoc.session[key]
+				if (expires && expires > Date.now()) {
 					keysToAuthorize.push(key)
 				}
 			})
@@ -219,7 +224,7 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 		return designDoc
 	}
 
-	const getDBConfig = (dbName: string, type: string) => {
+	const getDBConfig = (dbName: string, type?: string) => {
 		const dbConfig: {
 			adminRoles?: string[]
 			memberRoles?: string[]

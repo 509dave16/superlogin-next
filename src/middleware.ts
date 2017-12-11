@@ -1,7 +1,7 @@
 // Contains middleware useful for securing your routes
-import { Passport } from 'passport'
+import { PassportStatic } from 'passport'
 import { RequestHandler } from 'express'
-const middleware = (passport: Passport) => {
+const middleware = (passport: PassportStatic) => {
 	const forbiddenError = {
 		error: 'Forbidden',
 		message: 'You do not have permission to access this resource.',
