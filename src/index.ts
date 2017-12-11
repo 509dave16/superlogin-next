@@ -1,31 +1,37 @@
-const events = require('events')
-const express = require('express')
-const PouchDB = require('pouchdb-node')
-const seed = require('pouchdb-seed-design')
+import events from 'events'
+import express from 'express'
+import PouchDB from 'pouchdb-node'
+import seed from 'pouchdb-seed-design'
 
-const Configure = require('./configure')
-const User = require('./user')
-const Oauth = require('./oauth')
-const loadRoutes = require('./routes')
-const localConfig = require('./local')
-const Middleware = require('./middleware')
-const Mailer = require('./mailer')
-const util = require('./util')
-const defaultConfig = require('../config/default.config')
-const defaultPassport = require('passport')
+import Configure from './configure'
+import User from './user'
+import Oauth from './oauth'
+import loadRoutes from './routes'
+import localConfig from './local'
+import Middleware from './middleware'
+import Mailer from './mailer'
+import util from './util'
+import defaultConfig from 'config/default.config'
+import defaultPassport, { PassportStatic } from 'passport'
+import PouchUpsert from 'pouchdb-upsert'
+
 const userDesignDocs = require('../designDocs/user-design')
+PouchDB.plugin(PouchUpsert)
 
-PouchDB.plugin(require('pouchdb-upsert'))
-
-const init = async (configData, passport, userDB, couchAuthDB) => {
-	const config = new Configure(configData, defaultConfig)
+const init = async (
+	configData: IConfig,
+	passport?: PassportStatic,
+	userDB?: PouchDB.Database,
+	couchAuthDB?: PouchDB.Database
+) => {
+	const config = Configure(configData, defaultConfig)
 	const router = express.Router()
 	const emitter = new events.EventEmitter()
 
 	if (!passport || typeof passport !== 'object') {
 		passport = defaultPassport
 	}
-	const middleware = new Middleware(passport)
+	const middleware = Middleware(passport)
 
 	// Some extra default settings if no config object is specified
 	if (!configData) {
@@ -54,15 +60,14 @@ const init = async (configData, passport, userDB, couchAuthDB) => {
 		)
 	}
 
-	const mailer = new Mailer(config)
-	const user = new User(config, userDB, couchAuthDB, mailer, emitter)
-	const oauth = new Oauth(router, passport, user, config)
+	const mailer = Mailer(config)
+	const user = User(config, userDB, couchAuthDB, mailer, emitter)
+	const oauth = Oauth(router, passport, user, config)
 
 	// Seed design docs for the user database
 	let userDesign = userDesignDocs
 	userDesign = util.addProvidersToDesignDoc(config, userDesign)
-	const seedResult = await seed(userDB, userDesign)
-	console.log('seed result', seedResult)
+	await seed(userDB, userDesign)
 	// Configure Passport local login and api keys
 	localConfig(config, passport, user)
 	// Load the routes

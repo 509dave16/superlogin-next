@@ -1,8 +1,8 @@
-const util = require('./util')
+import util from './util'
+import { Router } from 'express'
+import { Passport } from 'passport'
 
-const routes = (config, router, passport, user) => {
-	const env = process.env.NODE_ENV || 'development'
-
+const routes = (config: IConfigure, router: Router, passport: Passport, user: User) => {
 	router.post(
 		'/login',
 		(req, res, next) => {
@@ -25,21 +25,15 @@ const routes = (config, router, passport, user) => {
 		},
 		(req, res, next) =>
 			// Success handler
-			user.createSession(req.user._id, 'local', req).then(
-				mySession => {
-					res.status(200).json(mySession)
-				},
-				err => next(err)
-			)
+			user
+				.createSession(req.user._id, 'local', req)
+				.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
 	)
 
 	router.post('/refresh', passport.authenticate('bearer', { session: false }), (req, res, next) =>
-		user.refreshSession(req.user.key).then(
-			mySession => {
-				res.status(200).json(mySession)
-			},
-			err => next(err)
-		)
+		user
+			.refreshSession(req.user.key)
+			.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
 	)
 
 	router.post('/logout', (req, res, next) => {
@@ -52,7 +46,7 @@ const routes = (config, router, passport, user) => {
 		}
 		return user.logoutSession(sessionToken).then(
 			() => res.status(200).json({ ok: true, success: 'Logged out' }),
-			err => {
+			(err: string) => {
 				console.error('Logout failed')
 				return next(err)
 			}
@@ -67,7 +61,7 @@ const routes = (config, router, passport, user) => {
 				() => {
 					res.status(200).json({ success: 'Other sessions logged out' })
 				},
-				err => {
+				(err: string) => {
 					console.error('Logout failed')
 					return next(err)
 				}
@@ -85,7 +79,7 @@ const routes = (config, router, passport, user) => {
 		}
 		return user.logoutUser(null, sessionToken).then(
 			() => res.status(200).json({ success: 'Logged out' }),
-			err => {
+			(err: string) => {
 				console.error('Logout-all failed')
 				return next(err)
 			}
@@ -95,18 +89,15 @@ const routes = (config, router, passport, user) => {
 	// Setting up the auth api
 	router.post('/register', (req, res, next) => {
 		user.create(req.body, req).then(
-			newUser => {
+			(newUser: IUserDoc) => {
 				if (config.getItem('security.loginOnRegistration')) {
-					return user.createSession(newUser._id, 'local', req.ip).then(
-						mySession => {
-							res.status(200).json(mySession)
-						},
-						err => next(err)
-					)
+					return user
+						.createSession(newUser._id, 'local', req.ip)
+						.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
 				}
 				return res.status(201).json({ success: 'User created.' })
 			},
-			err => next(err)
+			(err: string) => next(err)
 		)
 	})
 
@@ -115,24 +106,21 @@ const routes = (config, router, passport, user) => {
 			.forgotPassword(req.body.email, req)
 			.then(
 				() => res.status(200).json({ success: 'Password recovery email sent.' }),
-				err => next(err)
+				(err: string) => next(err)
 			)
 	)
 
 	router.post('/password-reset', (req, res, next) => {
 		user.resetPassword(req.body, req).then(
-			currentUser => {
+			(currentUser: IUserDoc) => {
 				if (config.getItem('security.loginOnPasswordReset')) {
-					return user.createSession(currentUser._id, 'local', req.ip).then(
-						mySession => {
-							res.status(200).json(mySession)
-						},
-						err => next(err)
-					)
+					return user
+						.createSession(currentUser._id, 'local', req.ip)
+						.then((mySession: {}) => res.status(200).json(mySession), (err: string) => next(err))
 				}
 				return res.status(200).json({ success: 'Password successfully reset.' })
 			},
-			err => next(err)
+			(err: string) => next(err)
 		)
 	})
 
@@ -144,7 +132,7 @@ const routes = (config, router, passport, user) => {
 				() => {
 					res.status(200).json({ success: 'password changed' })
 				},
-				err => next(err)
+				(err: string) => next(err)
 			)
 		}
 	)
@@ -159,7 +147,7 @@ const routes = (config, router, passport, user) => {
 				.then(
 					() =>
 						res.status(200).json({ success: `${util.capitalizeFirstLetter(provider)} unlinked` }),
-					err => next(err)
+					(err: string) => next(err)
 				)
 		}
 	)
@@ -178,7 +166,7 @@ const routes = (config, router, passport, user) => {
 				redirectURL
 					? res.status(201).redirect(`${redirectURL}?success=true`)
 					: res.status(200).send({ ok: true, success: 'Email verified' }),
-			err => {
+			(err: { message: string; error: string }) => {
 				if (redirectURL) {
 					let query = `?error=${encodeURIComponent(err.error)}`
 					if (err.message) {
@@ -198,11 +186,11 @@ const routes = (config, router, passport, user) => {
 		return user
 			.validateUsername(req.params.username)
 			.then(
-				err =>
+				(err: string) =>
 					err
 						? res.status(409).json({ error: 'Username already in use' })
 						: res.status(200).json({ ok: true }),
-				err => next(err)
+				(err: string) => next(err)
 			)
 	})
 
@@ -217,11 +205,11 @@ const routes = (config, router, passport, user) => {
 			promise = user.validateEmail(req.params.email)
 		}
 		return promise.then(
-			err =>
+			(err: string) =>
 				err
 					? res.status(409).json({ error: 'Email already in use' })
 					: res.status(200).json({ ok: true }),
-			err => next(err)
+			(err: string) => next(err)
 		)
 	})
 
@@ -233,7 +221,7 @@ const routes = (config, router, passport, user) => {
 				() => {
 					res.status(200).json({ ok: true, success: 'Email changed' })
 				},
-				err => next(err)
+				(err: string) => next(err)
 			)
 		}
 	)
@@ -247,19 +235,10 @@ const routes = (config, router, passport, user) => {
 		delete sessionUser.key
 		res.status(200).json(sessionUser)
 	})
+}
 
-	// Error handling
-	router.use((err, req, res) => {
-		console.error(err)
-		if (err.stack) {
-			console.error(err.stack)
-		}
-		res.status(err.status || 500)
-		if (err.stack && env !== 'development') {
-			delete err.stack
-		}
-		res.json(err)
-	})
+declare global {
+	type Routes = typeof routes
 }
 
 export default routes

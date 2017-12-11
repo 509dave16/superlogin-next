@@ -1,14 +1,24 @@
-const util = require('./util')
-const LocalStrategy = require('passport-local')
-const BearerStrategy = require('passport-http-bearer-sl').Strategy
+import util from './util'
+import LocalStrategy from 'passport-local'
+import Bearer from 'passport-http-bearer-sl'
+import { PassportStatic } from 'passport'
+import { Request } from 'express'
 
-const local = (config, passport, user) => {
-	const handleFailedLogin = (userDoc, req, done) => {
+const BearerStrategy = Bearer.Strategy
+
+type IDoneFunc = (
+	sth: {} | null,
+	sth2?: boolean | IUserDoc,
+	sth3?: { error?: string; message: string }
+) => void
+
+const local = (config: IConfigure, passport: PassportStatic, user: User) => {
+	const handleFailedLogin = (userDoc: IUserDoc, req: Request, done: IDoneFunc) => {
 		const invalid = {
 			error: 'Unauthorized',
 			message: 'Invalid username or password'
 		}
-		return user.handleFailedLogin(userDoc, req).then(locked => {
+		return user.handleFailedLogin(userDoc, req).then((locked: boolean) => {
 			if (locked) {
 				invalid.message = `Maximum failed login attempts exceeded. Your account has been locked for ${Math.round(
 					config.getItem('security.lockoutTime') / 60
@@ -19,7 +29,7 @@ const local = (config, passport, user) => {
 	}
 	// API token strategy
 	passport.use(
-		new BearerStrategy((tokenPass, done) => {
+		new BearerStrategy((tokenPass: string, done: IDoneFunc) => {
 			const parse = tokenPass.split(':')
 			if (parse.length < 2) {
 				done(null, false, { message: 'invalid token' })
@@ -27,10 +37,10 @@ const local = (config, passport, user) => {
 			const token = parse[0]
 			const password = parse[1]
 			user.confirmSession(token, password).then(
-				theuser => {
+				(theuser: IUserDoc) => {
 					done(null, theuser)
 				},
-				err => {
+				(err: Error | string) => {
 					if (err instanceof Error) {
 						done(err, false)
 					} else {
@@ -50,9 +60,9 @@ const local = (config, passport, user) => {
 				session: false,
 				passReqToCallback: true
 			},
-			(req, username, password, done) => {
+			(req: Request, username: string, password: string, done: IDoneFunc) => {
 				user.get(username).then(
-					theuser => {
+					(theuser: IUserDoc) => {
 						if (theuser) {
 							// Check if the account is locked
 							if (
@@ -84,7 +94,7 @@ const local = (config, passport, user) => {
 									// Success!!!
 									return done(null, theuser)
 								},
-								err => {
+								(err: string) => {
 									if (!err) {
 										// Password didn't authenticate
 										return handleFailedLogin(theuser, req, done)
@@ -102,13 +112,17 @@ const local = (config, passport, user) => {
 						}
 						return undefined
 					},
-					err =>
+					(err: string) =>
 						// Database threw an error
 						done(err)
 				)
 			}
 		)
 	)
+}
+
+declare global {
+	type Local = typeof local
 }
 
 export default local

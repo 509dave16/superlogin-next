@@ -1,35 +1,34 @@
 {
-  "compilerOptions": {
-    "allowJs": false,
-    "allowSyntheticDefaultImports": true,
-    "alwaysStrict": true,
-    "baseUrl": "./src/",
-    "emitDecoratorMetadata": false,
-    "experimentalDecorators": true,
-    "importHelpers": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "noEmit": true,
-    "noImplicitAny": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": false,
-    "pretty": true,
-    "removeComments": true,
-    "rootDir": "./src/",
-    "skipLibCheck": true,
-    "sourceMap": false,
-    "strict": true,
-    "strictNullChecks": true,
-    "suppressImplicitAnyIndexErrors": true,
-    "target": "esnext",
-    "watch": false,
-    "paths": {
-      "config/*": ["./config/*"],
-      "designDocs/*": ["./designDocs/*"],
-      "handlers/*": ["./handlers/*"],
-      "utils/*": ["./utils/*"]
-    }
-  },
-  "include": ["./types/**/*.d.ts", "./src/**/*.ts"]
+	"compilerOptions": {
+		"allowJs": false,
+		"allowSyntheticDefaultImports": true,
+		"alwaysStrict": true,
+		"baseUrl": "./src/",
+		"emitDecoratorMetadata": false,
+		"experimentalDecorators": true,
+		"importHelpers": true,
+		"module": "esnext",
+		"moduleResolution": "node",
+		"noEmit": true,
+		"noImplicitAny": true,
+		"noImplicitThis": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": false,
+		"pretty": true,
+		"removeComments": true,
+		"rootDir": "./src/",
+		"skipLibCheck": true,
+		"sourceMap": false,
+		"strict": true,
+		"strictNullChecks": true,
+		"suppressImplicitAnyIndexErrors": true,
+		"target": "esnext",
+		"watch": false,
+		"paths": {
+			"config/*": ["./config/*"],
+			"dbAuth/*": ["./dbAuth/*"],
+			"sessionAdapters/*": ["./sessionAdapters/*"]
+		}
+	},
+	"include": ["./types/**/*.d.ts", "./src/**/*.ts", "./index.d.ts"]
 }

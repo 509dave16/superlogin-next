@@ -1,13 +1,21 @@
-const util = require('../util')
+import util from '../util'
 
-function couchdb(couchAuthDB) {
-	const putSecurityCouch = (db, doc) =>
+const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
+	// tslint:disable-next-line:no-any
+	const putSecurityCouch = (db: any, doc: {}) =>
 		db.request({
 			method: 'PUT',
 			url: '_security',
 			body: doc
 		})
-	this.storeKey = (username, key, password, expires, roles) => {
+
+	const storeKey = (
+		username: string,
+		key: string,
+		password: string,
+		expires: number,
+		roles: string[]
+	) => {
 		if (roles instanceof Array) {
 			// Clone roles to not overwrite original
 			roles = roles.slice(0)
@@ -30,17 +38,22 @@ function couchdb(couchAuthDB) {
 		})
 	}
 
-	this.removeKeys = keys => {
+	const removeKeys = async (keys: string[]) => {
 		keys = util.toArray(keys)
-		const keylist = []
+		const keylist: string[] = []
 		// Transform the list to contain the CouchDB _user ids
 		keys.forEach(key => {
 			keylist.push(`org.couchdb.user:${key}`)
 		})
-		const toDelete = []
-		return couchAuthDB.allDocs({ keys: keylist }).then(keyDocs => {
+		const toDelete: {
+			_id: string
+			_rev: string
+			_deleted: boolean
+		}[] = []
+		try {
+			const keyDocs = await couchAuthDB.allDocs({ keys: keylist })
 			keyDocs.rows.forEach(row => {
-				if (!row.error && !row.value.deleted) {
+				if (!row.value.deleted) {
 					const deletion = {
 						_id: row.id,
 						_rev: row.value.rev,
@@ -53,12 +66,16 @@ function couchdb(couchAuthDB) {
 				return couchAuthDB.bulkDocs(toDelete)
 			}
 			return Promise.resolve(false)
-		})
+		} catch (error) {
+			console.log('error removing keys!', error)
+			return Promise.resolve(false)
+		}
 	}
 
-	this.initSecurity = (db, adminRoles, memberRoles) => {
+	// tslint:disable-next-line:no-any
+	const initSecurity = (db: any, adminRoles: string[], memberRoles: string[]) => {
 		let changes = false
-		return db.get('_security').then(secDoc => {
+		return db.get('_security').then((secDoc: ISecurityDoc) => {
 			if (!secDoc.admins) {
 				secDoc.admins = { names: [], roles: [] }
 			}
@@ -90,11 +107,12 @@ function couchdb(couchAuthDB) {
 		})
 	}
 
-	this.authorizeKeys = (user_id, db, keys) => {
-		let secDoc
+	// tslint:disable-next-line:no-any
+	const authorizeKeys = (user_id: string, db: any, keys: string[]) => {
+		let secDoc: ISecurityDoc
 		// Check if keys is an object and convert it to an array
-		if (typeof keys === 'object' && !(keys instanceof Array)) {
-			const keysArr = []
+		if (typeof keys === 'object' && !Array.isArray(keys)) {
+			const keysArr: string[] = []
 			Object.keys(keys).forEach(theKey => {
 				keysArr.push(theKey)
 			})
@@ -102,7 +120,7 @@ function couchdb(couchAuthDB) {
 		}
 		// Convert keys to an array if it is just a string
 		keys = util.toArray(keys)
-		return db.get('_security').then(doc => {
+		return db.get('_security').then((doc: ISecurityDoc) => {
 			secDoc = doc
 			if (!secDoc.members) {
 				secDoc.members = { names: [], roles: [] }
@@ -125,8 +143,9 @@ function couchdb(couchAuthDB) {
 		})
 	}
 
-	this.deauthorizeKeys = async (db, keys) => {
-		let secDoc
+	// tslint:disable-next-line:no-any
+	const deauthorizeKeys = async (db: any, keys: string[]) => {
+		let secDoc: ISecurityDoc
 		keys = util.toArray(keys)
 		try {
 			const doc = await db.get('_security')
@@ -152,7 +171,35 @@ function couchdb(couchAuthDB) {
 		}
 	}
 
-	return this
+	return {
+		initSecurity,
+		authorizeKeys,
+		deauthorizeKeys,
+		removeKeys,
+		storeKey
+	}
+}
+
+declare global {
+	interface IDBAdapter {
+		initSecurity(db: any, adminRoles: string[], memberRoles: string[]): void
+		authorizeKeys(
+			user_id: string,
+			db: any,
+			keys: string[],
+			permissions: string[],
+			roles: string[]
+		): void
+		deauthorizeKeys(db: any, keys: string[]): void
+		removeKeys(keys: string[]): void
+		storeKey(
+			username: string,
+			key: string,
+			password: string,
+			expires: number,
+			roles: string[]
+		): void
+	}
 }
 
 export default couchdb

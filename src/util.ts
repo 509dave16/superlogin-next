@@ -1,20 +1,21 @@
-const BPromise = require('bluebird')
-const URLSafeBase64 = require('urlsafe-base64')
-const uuid = require('uuid')
-const pwd = require('couch-pwd')
-const crypto = require('crypto')
+import BPromise from 'bluebird'
+import URLSafeBase64 from 'urlsafe-base64'
+import uuid from 'uuid'
+import pwd from 'couch-pwd'
+import crypto from 'crypto'
+import { Request } from 'express'
 
-export const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, Buffer.from(16)))
+export const URLSafeUUID = () => URLSafeBase64.encode(uuid.v4(null, new Buffer(16)))
 
-export const hashToken = token =>
+export const hashToken = (token: string) =>
 	crypto
 		.createHash('sha256')
 		.update(token)
 		.digest('hex')
 
-export const hashPassword = password =>
-	new Promise((resolve, reject) => {
-		pwd.hash(password, (err, salt, hash) => {
+export const hashPassword = (password: string) =>
+	new Promise<{ salt: string; derivedKey: string }>((resolve, reject) => {
+		pwd.hash(password, (err: string, salt: string, hash: string) => {
 			if (err) {
 				return reject(err)
 			}
@@ -25,8 +26,12 @@ export const hashPassword = password =>
 		})
 	})
 
-export const verifyPassword = (hashObj, password) => {
-	const getHash = BPromise.Promisify(pwd.hash, { context: pwd })
+export const verifyPassword = (
+	hashObj: { iterations: string; salt: string; derivedKey: string },
+	password: string
+) => {
+	// tslint:disable-next-line:no-any
+	const getHash: any = BPromise.promisify(pwd.hash, { context: pwd })
 	const { iterations, salt, derivedKey } = hashObj
 	if (iterations) {
 		pwd.iterations(iterations)
@@ -34,7 +39,7 @@ export const verifyPassword = (hashObj, password) => {
 	if (!salt || !derivedKey) {
 		return Promise.reject(false)
 	}
-	return getHash(password, salt).then(hash => {
+	return getHash(password, salt).then((hash: string) => {
 		if (hash === derivedKey) {
 			return Promise.resolve(true)
 		}
@@ -42,7 +47,12 @@ export const verifyPassword = (hashObj, password) => {
 	})
 }
 
-export const getDBURL = db => {
+export const getDBURL = (db: {
+	protocol: string
+	user: string
+	password: string
+	host: string
+}) => {
 	let url
 	if (db.user) {
 		url = `${db.protocol + encodeURIComponent(db.user)}:${encodeURIComponent(db.password)}@${
@@ -54,17 +64,21 @@ export const getDBURL = db => {
 	return url
 }
 
-export const getFullDBURL = (dbConfig, dbName) => `${getDBURL(dbConfig)}/${dbName}`
+export const getFullDBURL = (
+	dbConfig: { protocol: string; user: string; password: string; host: string },
+	dbName: string
+) => `${getDBURL(dbConfig)}/${dbName}`
 
-export const toArray = obj => {
+// tslint:disable-next-line:no-any
+export const toArray = (obj: any[]) => {
 	if (!(obj instanceof Array)) {
 		obj = [obj]
 	}
 	return obj
 }
 
-export const getSessions = userDoc => {
-	const sessions = []
+export const getSessions = (userDoc: IUserDoc) => {
+	const sessions: string[] = []
 	if (userDoc.session) {
 		Object.keys(userDoc.session).forEach(mySession => {
 			sessions.push(mySession)
@@ -73,8 +87,8 @@ export const getSessions = userDoc => {
 	return sessions
 }
 
-export const getExpiredSessions = (userDoc, now) => {
-	const sessions = []
+export const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
+	const sessions: {}[] = []
 	if (userDoc.session) {
 		Object.keys(userDoc.session).forEach(mySession => {
 			if (userDoc.session[mySession].expires <= now) {
@@ -86,9 +100,10 @@ export const getExpiredSessions = (userDoc, now) => {
 }
 
 // Takes a req object and returns the bearer token, or undefined if it is not found
-export const getSessionToken = req => {
+export const getSessionToken = (req: Request) => {
 	if (req.headers && req.headers.authorization) {
-		const parts = req.headers.authorization.split(' ')
+		const auth = req.headers.authorization as string
+		const parts = auth.split(' ')
 		if (parts.length === 2) {
 			const scheme = parts[0]
 			const credentials = parts[1]
@@ -105,7 +120,7 @@ export const getSessionToken = req => {
 }
 
 // Generates views for each registered provider in the user design doc
-export const addProvidersToDesignDoc = (config, ddoc) => {
+export const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} } }) => {
 	const providers = config.getItem('providers')
 	if (!providers) {
 		return ddoc
@@ -123,7 +138,8 @@ export const addProvidersToDesignDoc = (config, ddoc) => {
 }
 
 // Capitalizes the first letter of a string
-export const capitalizeFirstLetter = string => string.charAt(0).toUpperCase() + string.slice(1)
+export const capitalizeFirstLetter = (string: string) =>
+	string.charAt(0).toUpperCase() + string.slice(1)
 
 /**
  * Access nested JavaScript objects with string key
@@ -134,13 +150,13 @@ export const capitalizeFirstLetter = string => string.charAt(0).toUpperCase() + 
  * @return {object|undefined} a reference to the requested key or undefined if not found
  */
 
-export const getObjectRef = (obj, str) => {
+export const getObjectRef = (obj: {}, str: string) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
 	while (pList.length) {
 		const n = pList.shift()
-		if (n in obj) {
+		if (n && n in obj) {
 			obj = obj[n]
 		} else {
 			return undefined
@@ -159,7 +175,7 @@ export const getObjectRef = (obj, str) => {
  * @return {*} the value the reference was set to
  */
 
-export const setObjectRef = (obj, str, val) => {
+export const setObjectRef = (obj: {}, str: string, val: string) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -183,7 +199,7 @@ export const setObjectRef = (obj, str, val) => {
  * @return {boolean} true if successful
  */
 
-export const delObjectRef = (obj, str) => {
+export const delObjectRef = (obj: {}, str: string) => {
 	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
 	str = str.replace(/^\./, '') // strip a leading dot
 	const pList = str.split('.')
@@ -205,7 +221,7 @@ export const delObjectRef = (obj, str) => {
  * @return {array} resulting array
  */
 
-export const arrayUnion = (a, b) => {
+export const arrayUnion = (a: {}[], b: string) => {
 	const result = a.concat(b)
 	for (let i = 0; i < result.length; i += 1) {
 		for (let j = i + 1; j < result.length; j += 1) {

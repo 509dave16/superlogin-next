@@ -1,13 +1,19 @@
-const fs = require('fs')
-const path = require('path')
-const ejs = require('ejs')
-const extend = require('util')._extend
-const util = require('./util')
+import fs from 'fs'
+import path from 'path'
+import ejs from 'ejs'
+import util from './util'
+import { Passport, Strategy } from 'passport'
+import { Request, RequestHandler, Router, Response } from 'express'
 
 const stateRequired = ['google', 'linkedin']
 
-const oauth = (router, passport, user, config) => {
-	const getLinkCallbackURLs = (provider, req, operation, accessToken) => {
+const oauth = (router: Router, passport: Passport, user: User, config: IConfigure) => {
+	const getLinkCallbackURLs = (
+		provider: string,
+		req: Request,
+		operation: string,
+		accessToken: string
+	) => {
 		if (accessToken) {
 			accessToken = encodeURIComponent(accessToken)
 		}
@@ -35,8 +41,12 @@ const oauth = (router, passport, user, config) => {
 
 	// Configures the passport.authenticate for the given provider, passing in options
 	// Operation is 'login' or 'link'
-	const passportCallback = (provider, options, operation) => (req, res, next) => {
-		const theOptions = extend({}, options)
+	const passportCallback = (
+		provider: string,
+		options: { callbackURL?: string; state: boolean; session: boolean },
+		operation: string
+	): RequestHandler => (req, res, next) => {
+		const theOptions = Object.assign({}, options)
 		if (provider === 'linkedin') {
 			theOptions.state = true
 		}
@@ -54,8 +64,11 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Configures the passport.authenticate for the given access_token provider, passing in options
-	const passportTokenCallback = (provider, options) => (req, res, next) => {
-		const theOptions = extend({}, options)
+	const passportTokenCallback = (
+		provider: string,
+		options: { callbackURL?: string; state: boolean; session: boolean }
+	): RequestHandler => (req, res, next) => {
+		const theOptions = Object.assign({}, options)
 		theOptions.session = false
 		passport.authenticate(`${provider}-token`, theOptions)(req, res, next)
 	}
@@ -63,14 +76,19 @@ const oauth = (router, passport, user, config) => {
 	// This is called after a user has successfully authenticated with a provider
 	// If a user is authenticated with a bearer token we will link an account, otherwise log in
 	// auth is an object containing 'access_token' and optionally 'refresh_token'
-	const authHandler = (req, provider, auth, profile) => {
+	const authHandler = (
+		req: Request,
+		provider: string,
+		auth: { accessToken: string; refreshToken: string },
+		profile: {}
+	) => {
 		if (req.user && req.user._id && req.user.key) {
 			return user.linkSocial(req.user._id, provider, auth, profile, req)
 		}
 		return user.socialAuth(provider, auth, profile, req)
 	}
 	// Gets the provider name from a callback path
-	const getProvider = pathname => {
+	const getProvider = (pathname: string) => {
 		const items = pathname.split('/')
 		const index = items.indexOf('callback')
 		if (index > 0) {
@@ -80,20 +98,20 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Gets the provider name from a callback path for access_token strategy
-	const getProviderToken = pathname => {
+	const getProviderToken = (pathname: string) => {
 		const items = pathname.split('/')
 		const index = items.indexOf('token')
 		if (index > 0) {
 			return items[index - 1]
 		}
-		return undefined
+		return ''
 	}
 	// Function to initialize a session following authentication from a socialAuth provider
-	const initSession = (req, res, next) => {
+	const initSession: RequestHandler = (req, res, next) => {
 		const provider = getProvider(req.path)
 		return user
 			.createSession(req.user._id, provider, req)
-			.then(mySession =>
+			.then((mySession: {}) =>
 				Promise.resolve({
 					error: null,
 					session: mySession,
@@ -101,7 +119,7 @@ const oauth = (router, passport, user, config) => {
 				})
 			)
 			.then(
-				results => {
+				(results: {}) => {
 					let template
 					if (config.getItem('testMode.oauthTest')) {
 						template = fs.readFileSync(
@@ -117,26 +135,21 @@ const oauth = (router, passport, user, config) => {
 					const html = ejs.render(template, results)
 					res.status(200).send(html)
 				},
-				err => next(err)
+				(err: string) => next(err)
 			)
 	}
 
 	// Function to initialize a session following authentication from a socialAuth provider
-	const initTokenSession = (req, res, next) => {
+	const initTokenSession: RequestHandler = (req, res, next) => {
 		const provider = getProviderToken(req.path)
 		return user
 			.createSession(req.user._id, provider, req)
-			.then(mySession => Promise.resolve(mySession))
-			.then(
-				session => {
-					res.status(200).json(session)
-				},
-				err => next(err)
-			)
+			.then((mySession: {}) => Promise.resolve(mySession))
+			.then((session: {}) => res.status(200).json(session), (err: string) => next(err))
 	}
 
 	// Called after an account has been succesfully linked
-	const linkSuccess = (req, res) => {
+	const linkSuccess: RequestHandler = (req, res) => {
 		const provider = getProvider(req.path)
 		const result = {
 			error: null,
@@ -160,7 +173,7 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Called after an account has been succesfully linked using access_token provider
-	const linkTokenSuccess = (req, res) => {
+	const linkTokenSuccess: RequestHandler = (req, res) => {
 		const provider = getProviderToken(req.path)
 		res.status(200).json({
 			ok: true,
@@ -170,7 +183,11 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Handles errors if authentication fails
-	const oauthErrorHandler = (err, req, res) => {
+	const oauthErrorHandler = (
+		err: { message: string; stack: string },
+		req: Request,
+		res: Response
+	) => {
 		let template
 		if (config.getItem('testMode.oauthTest')) {
 			template = fs.readFileSync(
@@ -192,7 +209,11 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Handles errors if authentication from access_token provider fails
-	const tokenAuthErrorHandler = (err, req, res) => {
+	const tokenAuthErrorHandler = (
+		err: { message: string; stack: string },
+		req: Request,
+		res: Response
+	) => {
 		let status
 		if (req.user && req.user._id) {
 			status = 403
@@ -208,14 +229,24 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// Framework to register OAuth providers with passport
-	const registerProvider = (provider, configFunction) => {
+	const registerProvider = (
+		provider: string,
+		configFunction: (
+			s1: {} | null,
+			credentials: string,
+			// tslint:disable-next-line:no-any
+			passport: any,
+			// tslint:disable-next-line:no-any
+			authHandler: any
+		) => void
+	) => {
 		provider = provider.toLowerCase()
 		const configRef = `providers.${provider}`
 		if (config.getItem(`${configRef}.credentials`)) {
 			const credentials = config.getItem(`${configRef}.credentials`)
 			credentials.passReqToCallback = true
 			const options = config.getItem(`${configRef}.options`) || {}
-			configFunction.call(null, credentials, passport, authHandler)
+			configFunction(null, credentials, passport, authHandler)
 			router.get(`/${provider}`, passportCallback(provider, options, 'login'))
 			router.get(
 				`/${provider}/callback`,
@@ -242,7 +273,7 @@ const oauth = (router, passport, user, config) => {
 	}
 
 	// A shortcut to register OAuth2 providers that follow the exact accessToken, refreshToken pattern.
-	const registerOAuth2 = (providerName, Strategy) => {
+	const registerOAuth2 = (providerName: string, Strategy: Strategy) => {
 		registerProvider(providerName, (credentials, providerPassport, providerAuthHandler) => {
 			providerPassport.use(
 				new Strategy(credentials, async (req, accessToken, refreshToken, profile, done) =>
@@ -254,7 +285,7 @@ const oauth = (router, passport, user, config) => {
 
 	// Registers a provider that accepts an access_token directly from the client, skipping the popup window and callback
 	// This is for supporting Cordova, native IOS and Android apps, as well as other devices
-	const registerTokenProvider = (providerName, Strategy) => {
+	const registerTokenProvider = (providerName: string, Strategy: Strategy) => {
 		providerName = providerName.toLowerCase()
 		const configRef = `providers.${providerName}`
 		if (config.getItem(`${configRef}.credentials`)) {
@@ -292,6 +323,10 @@ const oauth = (router, passport, user, config) => {
 		registerOAuth2,
 		registerTokenProvider
 	}
+}
+
+declare global {
+	type Oauth = typeof oauth
 }
 
 export default oauth

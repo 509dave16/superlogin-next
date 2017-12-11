@@ -1,6 +1,7 @@
 // Contains middleware useful for securing your routes
-
-const middleware = passport => {
+import { Passport } from 'passport'
+import { RequestHandler } from 'express'
+const middleware = (passport: Passport) => {
 	const forbiddenError = {
 		error: 'Forbidden',
 		message: 'You do not have permission to access this resource.',
@@ -14,12 +15,12 @@ const middleware = passport => {
 	}
 
 	// Requires that the user be authenticated with a bearer token
-	const requireAuth = (req, res, next) => {
+	const requireAuth: RequestHandler = (req, res, next) => {
 		passport.authenticate('bearer', { session: false })(req, res, next)
 	}
 
 	// Requires that the user have the specified role
-	const requireRole = requiredRole => (req, res, next) => {
+	const requireRole = (requiredRole: string): RequestHandler => (req, res, next) => {
 		if (!req.user) {
 			return next(superloginError)
 		}
@@ -34,7 +35,7 @@ const middleware = passport => {
 	}
 
 	// Requires that the user have at least one of the specified roles
-	const requireAnyRole = possibleRoles => (req, res, next) => {
+	const requireAnyRole = (possibleRoles: string[]): RequestHandler => (req, res, next) => {
 		if (!req.user) {
 			return next(superloginError)
 		}
@@ -56,7 +57,7 @@ const middleware = passport => {
 		return undefined
 	}
 
-	const requireAllRoles = requiredRoles => (req, res, next) => {
+	const requireAllRoles = (requiredRoles: string[]): RequestHandler => (req, res, next) => {
 		if (!req.user) {
 			return next(superloginError)
 		}
@@ -86,6 +87,10 @@ const middleware = passport => {
 		requireAnyRole,
 		requireAllRoles
 	}
+}
+
+declare global {
+	type Middleware = typeof middleware
 }
 
 export default middleware

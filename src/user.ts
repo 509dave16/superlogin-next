@@ -11,7 +11,7 @@ const cloudant = require('./dbauth/cloudant')
 const EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
 const USER_REGEXP = /^[a-z0-9_-]{3,16}$/
 
-export default function user(config, userDB, couchAuthDB, mailer, emitter) {
+const user = (config, userDB, couchAuthDB, mailer, emitter) => {
 	const self = this
 	const dbAuth = new DBAuth(config, userDB, couchAuthDB)
 	const session = new Session(config)
@@ -1358,3 +1358,9 @@ export default function user(config, userDB, couchAuthDB, mailer, emitter) {
 
 	return this
 }
+
+declare global {
+	type User = typeof user
+}
+
+export default user

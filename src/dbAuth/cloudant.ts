@@ -3,22 +3,22 @@ const BPromise = require('bluebird')
 const request = require('superagent')
 const util = require('./../util')
 
-const getSecurityUrl = db => {
+const getSecurityUrl = (db: { name: string }) => {
 	const parsedUrl = url.parse(db.name)
 	parsedUrl.pathname += '/_security'
 	return url.format(parsedUrl)
 }
 
-export const getAPIKey = db => {
+export const getAPIKey = (db: { name: string }) => {
 	const parsedUrl = url.parse(db.name)
 	parsedUrl.pathname = '/_api/v2/api_keys'
 	const finalUrl = url.format(parsedUrl)
-	return BPromise.fromNode(callback => {
+	return BPromise.fromNode((callback: () => void) => {
 		request
 			.post(finalUrl)
 			//       .set(db.getHeaders())
 			.end(callback)
-	}).then(res => {
+	}).then((res: { text: string }) => {
 		const result = JSON.parse(res.text)
 		if (result.key && result.password && result.ok === true) {
 			return Promise.resolve(result)
@@ -27,25 +27,25 @@ export const getAPIKey = db => {
 	})
 }
 
-export const getSecurityCloudant = db => {
+export const getSecurityCloudant = (db: { name: string }) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(callback => {
+	return BPromise.fromNode((callback: () => void) => {
 		request
 			.get(finalUrl)
 			//       .set(db.getHeaders())
 			.end(callback)
-	}).then(res => Promise.resolve(JSON.parse(res.text)))
+	}).then((res: { text: string }) => Promise.resolve(JSON.parse(res.text)))
 }
 
-export const putSecurityCloudant = (db, doc) => {
+export const putSecurityCloudant = (db: { name: string }, doc: {}) => {
 	const finalUrl = getSecurityUrl(db)
-	return BPromise.fromNode(callback => {
+	return BPromise.fromNode((callback: () => void) => {
 		request
 			.put(finalUrl)
 			//       .set(db.getHeaders())
 			.send(doc)
 			.end(callback)
-	}).then(res => Promise.resolve(JSON.parse(res.text)))
+	}).then((res: { text: string }) => Promise.resolve(JSON.parse(res.text)))
 }
 
 // This is not needed with Cloudant
@@ -54,7 +54,14 @@ export const storeKey = () => Promise.resolve()
 // This is not needed with Cloudant
 export const removeKeys = () => Promise.resolve()
 
-export const initSecurity = (db, adminRoles, memberRoles) => {
+export const initSecurity = (
+	db: {
+		name: string
+		get: (schema: string) => Promise<ISecurityDoc>
+	},
+	adminRoles: string[],
+	memberRoles: string[]
+) => {
 	let changes = false
 	return db.get('_security').then(secDoc => {
 		if (!secDoc.admins) {
@@ -69,13 +76,13 @@ export const initSecurity = (db, adminRoles, memberRoles) => {
 		if (!secDoc.members.roles) {
 			secDoc.admins.roles = []
 		}
-		adminRoles.forEach(role => {
+		adminRoles.forEach((role: string) => {
 			if (secDoc.admins.roles.indexOf(role) === -1) {
 				changes = true
 				secDoc.admins.roles.push(role)
 			}
 		})
-		memberRoles.forEach(role => {
+		memberRoles.forEach((role: string) => {
 			if (secDoc.members.roles.indexOf(role) === -1) {
 				changes = true
 				secDoc.members.roles.push(role)
@@ -88,7 +95,13 @@ export const initSecurity = (db, adminRoles, memberRoles) => {
 	})
 }
 
-export const authorizeKeys = (user_id, db, keys, permissions, roles) => {
+export const authorizeKeys = (
+	user_id: string,
+	db: { name: string },
+	keys: string[],
+	permissions: string[],
+	roles: string[]
+) => {
 	let keysObj = {}
 	if (!permissions) {
 		permissions = ['_reader', '_replicator']
@@ -106,24 +119,22 @@ export const authorizeKeys = (user_id, db, keys, permissions, roles) => {
 		keysObj = keys
 	}
 	// Pull the current _security doc
-	return getSecurityCloudant(db).then(secDoc => {
+	return getSecurityCloudant(db).then((secDoc: { _id: string; cloudant: {} }) => {
 		if (!secDoc._id) {
 			secDoc._id = '_security'
 		}
 		if (!secDoc.cloudant) {
 			secDoc.cloudant = {}
 		}
-		Object.keys(keysObj).forEach(key => {
-			secDoc.cloudant[key] = keysObj[key]
-		})
+		Object.keys(keysObj).forEach(key => (secDoc.cloudant[key] = keysObj[key]))
 		return putSecurityCloudant(db, secDoc)
 	})
 }
 
-export const deauthorizeKeys = (db, keys) => {
+export const deauthorizeKeys = (db: { name: string }, keys: string[]) => {
 	// cast keys to an Array
 	keys = util.toArray(keys)
-	return getSecurityCloudant(db).then(secDoc => {
+	return getSecurityCloudant(db).then((secDoc: { cloudant: {} }) => {
 		let changes = false
 		if (!secDoc.cloudant) {
 			return Promise.resolve(false)
@@ -139,4 +150,15 @@ export const deauthorizeKeys = (db, keys) => {
 		}
 		return Promise.resolve(false)
 	})
+}
+
+export default {
+	getAPIKey,
+	getSecurityCloudant,
+	putSecurityCloudant,
+	storeKey,
+	removeKeys,
+	initSecurity,
+	authorizeKeys,
+	deauthorizeKeys
 }
