@@ -647,10 +647,10 @@ const user = (
 			if (action === 'signup') {
 				emitter.emit('signup', finalUser, provider)
 			}
-			return Promise.resolve(finalUser)
+			return finalUser
 		} catch (error) {
 			console.log('social auth failed!', error)
-			Promise.resolve()
+			return undefined
 		}
 	}
 
@@ -1185,34 +1185,40 @@ const user = (
 		permissions: string[]
 	) => {
 		let userDoc: IUserDoc
-		const dbConfig = dbAuth.getDBConfig(dbName, type || 'private')
-		dbConfig.designDocs = designDocs || dbConfig.designDocs || ''
-		dbConfig.permissions = permissions || dbConfig.permissions
-		const result = await userDB.get<IUserDoc>(user_id)
+		try {
+			const dbConfig = dbAuth.getDBConfig(dbName, type || 'private')
+			dbConfig.designDocs = designDocs || dbConfig.designDocs || ''
+			dbConfig.permissions = permissions || dbConfig.permissions
+			const result = await userDB.get<IUserDoc>(user_id)
 
-		userDoc = result
-		const finalDBName = await dbAuth.addUserDB(
-			userDoc,
-			dbName,
-			dbConfig.designDocs,
-			dbConfig.type,
-			dbConfig.permissions,
-			dbConfig.adminRoles,
-			dbConfig.memberRoles
-		)
-		if (!userDoc.personalDBs) {
-			userDoc.personalDBs = {}
+			userDoc = result
+			const finalDBName = await dbAuth.addUserDB(
+				userDoc,
+				dbName,
+				dbConfig.designDocs,
+				dbConfig.type,
+				dbConfig.permissions,
+				dbConfig.adminRoles,
+				dbConfig.memberRoles
+			)
+			if (!userDoc.personalDBs) {
+				userDoc.personalDBs = {}
+			}
+			delete dbConfig.designDocs
+			// If permissions is specified explicitly it will be saved, otherwise will be taken from defaults every session
+			if (!permissions) {
+				delete dbConfig.permissions
+			}
+			delete dbConfig.adminRoles
+			delete dbConfig.memberRoles
+			userDoc.personalDBs[finalDBName] = dbConfig
+			emitter.emit('user-db-added', user_id, dbName)
+			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
+			return userDoc
+		} catch (error) {
+			console.log('error adding user db', error)
+			return undefined
 		}
-		delete dbConfig.designDocs
-		// If permissions is specified explicitly it will be saved, otherwise will be taken from defaults every session
-		if (!permissions) {
-			delete dbConfig.permissions
-		}
-		delete dbConfig.adminRoles
-		delete dbConfig.memberRoles
-		userDoc.personalDBs[finalDBName] = dbConfig
-		emitter.emit('user-db-added', user_id, dbName)
-		return userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
 	}
 
 	const removeUserDB = async (

@@ -190,6 +190,10 @@ const dbauth = (
 					})
 				)
 			}
+
+			// Refresh the user doc incase it changed
+			userDoc = await userDB.get<IUserDoc>(userDoc._id)
+
 			// Authorize the user's existing DB keys to access the new database
 			const keysToAuthorize: string[] = []
 			if (userDoc.session) {
