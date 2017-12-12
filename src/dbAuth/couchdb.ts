@@ -52,7 +52,6 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		try {
 			// tslint:disable-next-line:no-any
 			const keyDocs: any = await couchAuthDB.allDocs({ keys: keylist })
-			console.log('gathering keys to delete', keyDocs)
 			keyDocs.rows.forEach(
 				(row: { id: string; error: string; value: { rev: string; _deleted: boolean } }) => {
 					if (!row.error && (!row.value || !row.value._deleted)) {
@@ -66,7 +65,6 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 				}
 			)
 			if (toDelete.length) {
-				console.log('deleting keys', toDelete)
 				return couchAuthDB.bulkDocs(toDelete)
 			}
 			return Promise.resolve(false)
@@ -186,8 +184,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 				}
 			})
 			if (changes) {
-				console.log('deauthorizeKeys', changes)
-				return await putSecurityCouch(db, secDoc)
+				return putSecurityCouch(db, secDoc)
 			}
 			return Promise.resolve(false)
 		} catch (error) {

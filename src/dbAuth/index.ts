@@ -126,22 +126,27 @@ const dbauth = (
 		sessionKeys: string | string[],
 		roles: string[]
 	) => {
-		sessionKeys = util.toArray(sessionKeys)
-		return Promise.all(
-			Object.keys(personalDBs).map(async personalDB => {
-				let { permissions } = personalDBs[personalDB]
-				if (!permissions) {
-					permissions =
-						config.getItem(`userDBs.model.${personalDBs[personalDB].name}.permissions`) ||
-						config.getItem('userDBs.model._default.permissions') ||
-						[]
-				}
-				const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
-					skip_setup: true
-				}) as PouchDB.Database & { name: string }
-				return authorizeKeys(user_id, db, sessionKeys as string[], permissions, roles)
-			})
-		)
+		try {
+			sessionKeys = util.toArray(sessionKeys)
+			return Promise.all(
+				Object.keys(personalDBs).map(async personalDB => {
+					let { permissions } = personalDBs[personalDB]
+					if (!permissions) {
+						permissions =
+							config.getItem(`userDBs.model.${personalDBs[personalDB].name}.permissions`) ||
+							config.getItem('userDBs.model._default.permissions') ||
+							[]
+					}
+					const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
+						skip_setup: true
+					}) as PouchDB.Database & { name: string }
+					return authorizeKeys(user_id, db, sessionKeys as string[], permissions, roles)
+				})
+			)
+		} catch (error) {
+			console.log('error authorizing user sessions', error)
+			return undefined
+		}
 	}
 
 	const addUserDB = async (

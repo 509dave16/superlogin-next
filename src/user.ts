@@ -806,6 +806,9 @@ const user = (
 				createSessionUser.roles
 			)
 
+			// Refresh the session user just in case new dbs are created by this point
+			createSessionUser = await userDB.get<IUserDoc>(user_id)
+
 			// authorize the new session across all dbs
 			if (!!createSessionUser.personalDBs) {
 				await dbAuth.authorizeUserSessions(
