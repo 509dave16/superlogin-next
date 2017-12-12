@@ -9,6 +9,7 @@ var Mailer = require('../lib/mailer').default
 var util = require('../lib/util').default
 var seed = require('pouchdb-seed-design')
 var request = require('superagent')
+var merge = require('lodash.merge')
 var config = require('./test.config.js')
 
 var chai = require('chai')
@@ -857,9 +858,11 @@ describe('User Model', function() {
 	it('should create a new user in userEmail mode', function() {
 		return previous
 			.then(function() {
-				userConfig.setItem('local.emailUsername', true)
 				// Don't create any more userDBs
-				userConfig.removeItem('userDBs.defaultDBs')
+				userConfig.set(old =>
+					merge({}, old, { userDBs: { defaultDBs: undefined }, local: { emailUsername: true } })
+				)
+
 				// Create a new instance of user with the new config
 				user = new User(userConfig, userDB, keysDB, mailer, emitter)
 				return user.create(emailUserForm, req)

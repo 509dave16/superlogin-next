@@ -4,6 +4,7 @@ global.Promise = require('bluebird')
 import pwd from 'couch-pwd'
 import crypto from 'crypto'
 import { Request } from 'express'
+import merge from 'lodash.merge'
 import URLSafeBase64 from 'urlsafe-base64'
 import uuid from 'uuid'
 
@@ -66,7 +67,12 @@ const toArray = <T>(obj: T | T[]): T[] => (Array.isArray(obj) ? obj : [obj])
 const getSessions = ({ session }: IUserDoc) => (session ? Object.keys(session) : [])
 
 const getExpiredSessions = ({ session }: IUserDoc, now: number) =>
-	session ? Object.keys(session).filter(k => !session[k].expires || session.expires <= now) : []
+	session
+		? Object.keys(session).filter(k => {
+				const thisSession = session[k]
+				return !thisSession.expires || thisSession.expires <= now
+			})
+		: []
 
 // Takes a req object and returns the bearer token, or undefined if it is not found
 const getSessionToken = (req: Request) => {
@@ -96,13 +102,14 @@ const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} }
 	}
 	const ddocTemplate = (provider: string) =>
 		`function(doc){ if(doc.${provider} && doc.${provider}.profile) { emit(doc.${provider}.profile.id,null); } }`
-	return {
-		...ddoc,
-		...Object.keys(providers).reduce(
-			(r, provider) => ({ ...r, [provider]: { map: ddocTemplate(provider) } }),
-			{}
-		)
-	}
+	return merge({}, ddoc, {
+		auth: {
+			views: Object.keys(providers).reduce(
+				(r, provider) => ({ ...r, [provider]: { map: ddocTemplate(provider) } }),
+				{}
+			)
+		}
+	})
 }
 
 // Capitalizes the first letter of a string

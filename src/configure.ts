@@ -1,5 +1,7 @@
+import merge from 'lodash.merge'
+
 const configure = (data: IUserConfig, defaults: IDefaultConfig): IConfigure => {
-	let finalConfig = Object.assign({}, defaults, data) as IConfiguration
+	let finalConfig = merge({}, defaults, data) as IConfiguration
 
 	return {
 		get: () => finalConfig,

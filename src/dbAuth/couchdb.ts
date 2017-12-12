@@ -31,26 +31,26 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 	const removeKeys = async (keys: string | string[]) => {
 		keys = util.toArray(keys)
 		// Transform the list to contain the CouchDB _user ids
-		const keylist = keys.map(key => `org.couchdb.user:${key}`)
+		const keylist = keys.filter(k => k).map(key => `org.couchdb.user:${key}`)
 		try {
 			const keyDocs = await couchAuthDB.allDocs({ keys: keylist })
 			if (keyDocs.rows && keyDocs.rows.length > 0) {
 				const toDelete = keyDocs.rows.reduce(
 					(r: {}[], row) =>
-						!row.value || !row.value.deleted
-							? [
+						!row.value || row.value.deleted
+							? r
+							: [
 									...r,
 									{
 										_id: row.id,
 										_rev: row.value.rev,
 										_deleted: true
 									}
-								]
-							: r,
+								],
 					[]
 				)
-				if (toDelete.length) {
-					return couchAuthDB.bulkDocs(toDelete)
+				if (toDelete.length > 0) {
+					return await couchAuthDB.bulkDocs(toDelete)
 				}
 			}
 			return Promise.resolve(false)

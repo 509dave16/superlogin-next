@@ -78,6 +78,10 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 		adapter.deauthorizeKeys(db, keys)
 
 	const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
+		if (!userDoc) {
+			console.error('deauthorizeUser error - no userdoc specified')
+			return Promise.resolve(false)
+		}
 		// If keys is not specified we will deauthorize all of the users sessions
 		const finalKeys = keys ? util.toArray(keys) : util.getSessions(userDoc)
 		if (userDoc.personalDBs && typeof userDoc.personalDBs === 'object') {
@@ -95,7 +99,7 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 				})
 			)
 		}
-		console.error('error deauthorizing db - user has no personalDBs')
+		console.error('deauthorizeUser error - user has no personalDBs')
 		return Promise.resolve(false)
 	}
 
@@ -169,9 +173,10 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 
 			if (userDoc.session) {
 				// Authorize the user's existing DB keys to access the new database
-				const keysToAuthorize = Object.keys(userDoc.session).filter(
-					k => userDoc.session[k] && userDoc.session[k] > Date.now()
-				)
+				const keysToAuthorize = Object.keys(userDoc.session).filter(k => {
+					const { expires } = userDoc.session[k]
+					return expires && expires > Date.now()
+				})
 				if (keysToAuthorize.length > 0) {
 					await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
 				}
@@ -200,10 +205,9 @@ const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 					const newExpiredKeys = [...r.expiredKeys, key]
 					const newKeysByUser = { ...r.keysByUser, [user]: key }
 
-					const userDoc = doc && doc[user]
-
-					if (userDoc) {
-						const { [key]: deleted, ...finalSession } = userDoc.session
+					if (doc) {
+						const { session, ...userDoc } = doc
+						const { [key]: deleted, ...finalSession } = session
 						const newUserDocs = { ...r.userDocs, [user]: { ...userDoc, session: finalSession } }
 						return { expiredKeys: newExpiredKeys, userDocs: newUserDocs, keysByUser: newKeysByUser }
 					}

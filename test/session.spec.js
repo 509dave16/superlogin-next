@@ -4,6 +4,7 @@ var expect = require('chai').expect
 var Session = require('../lib/session').default
 var Configure = require('../lib/configure').default
 var rimraf = Promise.promisify(require('rimraf'))
+var merge = require('lodash.merge')
 
 var testToken = {
 	_id: 'colinskow',
@@ -35,7 +36,7 @@ describe('Session', function() {
 			return runTest(fileConfig, 'File adapter')
 		})
 		.finally(function() {
-			config.setItem('session.adapter', 'redis')
+			config.set(old => merge({}, old, { session: { adapter: 'redis' } }))
 			return runTest(config, 'Redis adapter')
 		})
 		.finally(function() {

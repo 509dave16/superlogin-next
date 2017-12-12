@@ -49,9 +49,6 @@ const user = (
 			}
 			const thisUser = userDoc || (await userDB.get<IUserDoc>(user_id))
 
-			if (!thisUser.activity || !Array.isArray(thisUser.activity)) {
-				thisUser.activity = []
-			}
 			const activity = [
 				{
 					timestamp: new Date().toISOString(),
@@ -63,7 +60,7 @@ const user = (
 			]
 
 			if (activity.length > logSize) {
-				activity.splice(logSize - 1, activity.length - 1)
+				activity.splice(logSize, activity.length - 1)
 			}
 
 			const finalUser = {
@@ -77,7 +74,7 @@ const user = (
 					return merge({}, oldData, finalUser)
 				})
 			}
-			return Promise.resolve(userDoc)
+			return Promise.resolve(finalUser)
 		} catch (error) {
 			console.error('error logging activity', error)
 			return Promise.resolve(userDoc)
@@ -197,41 +194,47 @@ const user = (
 		if (!userDBs || !userDBs.defaultDBs) {
 			return Promise.resolve(newUser)
 		}
-		newUser.personalDBs = {}
 
-		const processUserDBs = async (dbList: string[], type: string) =>
-			Promise.all(
-				dbList.map(async userDBName => {
-					const dbConfig = dbAuth.getDBConfig(userDBName)
-					const finalDBName = await dbAuth.addUserDB(
-						newUser,
-						userDBName,
-						dbConfig.designDocs || [],
-						type,
-						dbConfig.permissions || [],
-						dbConfig.adminRoles || [],
-						dbConfig.memberRoles || []
-					)
-					delete dbConfig.permissions
-					delete dbConfig.adminRoles
-					delete dbConfig.memberRoles
-					delete dbConfig.designDocs
-					dbConfig.type = type
-					newUser.personalDBs[finalDBName] = dbConfig
-				})
-			)
+		try {
+			newUser.personalDBs = {}
 
-		// Just in case defaultDBs is not specified
-		const defaultPrivateDBs = userDBs.defaultDBs && userDBs.defaultDBs.private
-		if (Array.isArray(defaultPrivateDBs)) {
-			await processUserDBs(defaultPrivateDBs, 'private')
+			const processUserDBs = async (dbList: string[], type: string) =>
+				Promise.all(
+					dbList.map(async userDBName => {
+						const dbConfig = dbAuth.getDBConfig(userDBName)
+						const finalDBName = await dbAuth.addUserDB(
+							newUser,
+							userDBName,
+							dbConfig.designDocs || [],
+							type,
+							dbConfig.permissions || [],
+							dbConfig.adminRoles || [],
+							dbConfig.memberRoles || []
+						)
+						delete dbConfig.permissions
+						delete dbConfig.adminRoles
+						delete dbConfig.memberRoles
+						delete dbConfig.designDocs
+						dbConfig.type = type
+						newUser.personalDBs[finalDBName] = dbConfig
+					})
+				)
+
+			// Just in case defaultDBs is not specified
+			const defaultPrivateDBs = userDBs.defaultDBs && userDBs.defaultDBs.private
+			if (Array.isArray(defaultPrivateDBs)) {
+				await processUserDBs(defaultPrivateDBs, 'private')
+			}
+			const defaultSharedDBs = userDBs.defaultDBs.shared
+			if (Array.isArray(defaultSharedDBs)) {
+				await processUserDBs(defaultSharedDBs, 'shared')
+			}
+
+			return Promise.resolve(newUser)
+		} catch (error) {
+			console.error('addUserDBs failed', error)
+			return newUser
 		}
-		const defaultSharedDBs = userDBs.defaultDBs.shared
-		if (Array.isArray(defaultSharedDBs)) {
-			await processUserDBs(defaultSharedDBs, 'shared')
-		}
-
-		return Promise.resolve(newUser)
 	}
 
 	const generateSession = async (username: string, roles: string[]) => {
@@ -370,11 +373,7 @@ const user = (
 		matches: 'confirmPassword'
 	}
 
-	passwordConstraints = Object.assign(
-		{},
-		passwordConstraints,
-		config.get().local.passwordConstraints
-	)
+	passwordConstraints = merge({}, passwordConstraints, config.get().local.passwordConstraints)
 
 	const userModel = {
 		async: true,
@@ -500,7 +499,7 @@ const user = (
 			if (newUserModel.whitelist) {
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
-			finalUserModel = Object.assign({}, userModel, config.get().userModel)
+			finalUserModel = merge({}, userModel, config.get().userModel)
 			finalUserModel.whitelist =
 				whitelist && whitelist.length > 0 ? whitelist : finalUserModel.whitelist
 		}

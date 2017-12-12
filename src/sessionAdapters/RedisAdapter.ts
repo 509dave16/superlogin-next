@@ -16,11 +16,9 @@ interface IPromRedis extends RedisClient {
 
 const RedisAdapter = (config: IConfigure): IAdapter => {
 	const { redis: redisConfig } = config.get().session
-	if (!redisConfig) {
-		throw new Error('No redis configuration found')
-	}
+	const finalRedisConfig = redisConfig || { host: '127.0.0.1', port: 6379 }
 
-	const { unix_socket, url, port, host, options, password } = redisConfig
+	const { unix_socket, url, port, host, options, password } = finalRedisConfig
 
 	const redisClient = unix_socket
 		? (redis.createClient(unix_socket, options) as IPromRedis)

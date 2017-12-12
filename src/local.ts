@@ -102,7 +102,7 @@ const local = (config: IConfigure, passport: PassportStatic, user: User) => {
 						})
 					}
 				} catch (error) {
-					console.log('error in local strategy', error)
+					console.error('error in local strategy', error)
 					return done(error)
 				}
 			}

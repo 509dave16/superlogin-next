@@ -9,6 +9,7 @@ var expect = chai.expect
 chai.use(require('sinon-chai'))
 
 var PouchDB = require('pouchdb-node')
+var merge = require('lodash.merge')
 var seed = require('pouchdb-seed-design')
 var util = require('../lib/util.js').default
 
@@ -326,7 +327,7 @@ describe('SuperLogin', function() {
 
 	it('should login after creating a new user', function() {
 		return previous.then(function() {
-			app.config.setItem('security.loginOnRegistration', true)
+			app.config.set(old => merge({}, old, { security: { loginOnRegistration: true } }))
 			return new Promise(function(resolve, reject) {
 				request
 					.post(server + '/auth/register')
