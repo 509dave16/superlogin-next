@@ -34,7 +34,7 @@ const Session = (config: IConfigure) => {
 				delete token.derived_key
 				return token
 			} catch (error) {
-				console.log('confirm token error', error)
+				console.error('confirm token error', error)
 				return Promise.reject('invalid token')
 			}
 		},
@@ -74,7 +74,7 @@ const Session = (config: IConfigure) => {
 				delete finalToken.derived_key
 				return finalToken
 			} catch (error) {
-				console.log('error storing token', error)
+				console.error('error storing token', error)
 				return undefined
 			}
 		},

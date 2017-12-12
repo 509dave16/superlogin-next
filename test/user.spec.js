@@ -20,7 +20,7 @@ var dbUrl = util.getDBURL(config.dbServer)
 
 var emitter = new events.EventEmitter()
 
-PouchDB.plugin(require('pouchdb-upsert'))
+PouchDB.plugin(require('pouchdb-upsert')).plugin(require('pouchdb-security-helper'))
 PouchDB.setMaxListeners(20)
 var userDB = new PouchDB(dbUrl + '/superlogin_test_users')
 var keysDB = new PouchDB(dbUrl + '/superlogin_test_keys')

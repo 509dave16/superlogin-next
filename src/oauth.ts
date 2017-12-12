@@ -209,7 +209,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			}
 			res.status(400).send(html)
 		} catch (error) {
-			console.log('failed sending oauthError', error)
+			console.error('failed sending oauthError', error)
 			return res.status(500)
 		}
 	}
@@ -235,7 +235,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			}
 			res.status(status).json(err)
 		} catch (error) {
-			console.log('failed sending oauthError', error)
+			console.error('failed sending oauthError', error)
 			return res.status(500)
 		}
 	}

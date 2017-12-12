@@ -44,24 +44,26 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		try {
 			// tslint:disable-next-line:no-any
 			const keyDocs: any = await couchAuthDB.allDocs({ keys: keylist })
-			keyDocs.rows.forEach(
-				(row: { id: string; error: string; value: { rev: string; _deleted: boolean } }) => {
-					if (!row.error && (!row.value || !row.value._deleted)) {
-						const deletion = {
-							_id: row.id,
-							_rev: row.value.rev,
-							_deleted: true
+			if (keyDocs.rows && keyDocs.rows.length > 0) {
+				keyDocs.rows.forEach(
+					(row: { id: string; error: string; value: { rev: string; _deleted: boolean } }) => {
+						if (!row.error && (!row.value || !row.value._deleted)) {
+							const deletion = {
+								_id: row.id,
+								_rev: row.value.rev,
+								_deleted: true
+							}
+							toDelete.push(deletion)
 						}
-						toDelete.push(deletion)
 					}
+				)
+				if (toDelete.length) {
+					return couchAuthDB.bulkDocs(toDelete)
 				}
-			)
-			if (toDelete.length) {
-				return couchAuthDB.bulkDocs(toDelete)
 			}
 			return Promise.resolve(false)
 		} catch (error) {
-			console.log('error removing keys!', error)
+			console.error('error removing keys!', error)
 			return Promise.resolve(false)
 		}
 	}
@@ -72,15 +74,14 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		memberRoles: string[]
 	) => {
 		try {
-			console.log(' initSecurity', adminRoles, memberRoles)
 			const security = db.security()
 			await security.fetch()
 
 			security.members.roles.add(memberRoles)
 			security.admins.roles.add(adminRoles)
-			return security.save()
+			return await security.save()
 		} catch (error) {
-			console.log('error initializing security', error)
+			console.error('error initializing security', error)
 			return Promise.resolve(false)
 		}
 	}
@@ -103,14 +104,13 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			keys = util.toArray(keys)
 		}
 		try {
-			console.log('authorizeKeys', keys)
 			const security = db.security()
 			await security.fetch()
 
 			security.members.names.add(keys)
-			return security.save()
+			return await security.save()
 		} catch (error) {
-			console.log('error authorizing keys', error)
+			console.error('error authorizing keys', error)
 			return Promise.resolve(false)
 		}
 	}
@@ -121,14 +121,13 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 	) => {
 		keys = util.toArray(keys)
 		try {
-			console.log('deauthorizeKeys', keys)
 			const security = db.security()
 			await security.fetch()
 
 			security.members.names.remove(keys)
-			return security.save()
+			return await security.save()
 		} catch (error) {
-			console.log('error deauthorizing keys!', error)
+			console.error('error deauthorizing keys!', error)
 			return Promise.resolve(false)
 		}
 	}

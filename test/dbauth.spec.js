@@ -8,7 +8,7 @@ var DBAuth = require('../lib/dbauth').default
 var Configure = require('../lib/configure').default
 var util = require('../lib/util.js').default
 var config = require('./test.config.js')
-PouchDB.plugin(require('pouchdb-upsert'))
+PouchDB.plugin(require('pouchdb-upsert')).plugin(require('pouchdb-security-helper'))
 
 var dbUrl = util.getDBURL(config.dbServer)
 

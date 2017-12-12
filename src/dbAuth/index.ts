@@ -111,7 +111,7 @@ const dbauth = (
 						})
 						return deauthorizeKeys(db, keys)
 					} catch (error) {
-						console.log('error deauthorizing db!', error)
+						console.error('error deauthorizing db!', error)
 						return Promise.resolve()
 					}
 				})
@@ -144,7 +144,7 @@ const dbauth = (
 				})
 			)
 		} catch (error) {
-			console.log('error authorizing user sessions', error)
+			console.error('error authorizing user sessions', error)
 			return undefined
 		}
 	}
@@ -175,12 +175,9 @@ const dbauth = (
 			finalDBName = `${prefix}${dbName}$${username}`
 		}
 		try {
-			// await createDB(finalDBName)
-			console.log('creating db', finalDBName)
 			newDB = new PouchDB(
 				`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
 			) as PouchDB.Database & { name: string }
-			console.log('initSecurity', adminRoles, memberRoles)
 			await adapter.initSecurity(newDB, adminRoles, memberRoles)
 
 			// Seed the design docs
@@ -198,18 +195,19 @@ const dbauth = (
 				)
 			}
 
-			// Authorize the user's existing DB keys to access the new database
-			const keysToAuthorize: string[] = Object.keys(userDoc.session).filter(k => {
-				const session = userDoc.session[k]
-				return session.expires && session.expires > Date.now()
-			})
-			console.log('keysToAuthorize', keysToAuthorize)
-			if (keysToAuthorize.length > 0) {
-				await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
+			if (userDoc.session) {
+				// Authorize the user's existing DB keys to access the new database
+				const keysToAuthorize: string[] = Object.keys(userDoc.session).filter(k => {
+					const session = userDoc.session[k]
+					return session.expires && session.expires > Date.now()
+				})
+				if (keysToAuthorize.length > 0) {
+					await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
+				}
 			}
 			return finalDBName
 		} catch (error) {
-			console.log('create user db error', error)
+			console.error('create user db error', error)
 			return finalDBName
 		}
 	}
@@ -250,7 +248,7 @@ const dbauth = (
 			await userDB.bulkDocs(Object.values(userDocs))
 			return expiredKeys
 		} catch (error) {
-			console.log('error expiring keys', error)
+			console.error('error expiring keys', error)
 			return expiredKeys
 		}
 	}
@@ -312,7 +310,7 @@ const dbauth = (
 			await db.destroy()
 			return Promise.resolve()
 		} catch (error) {
-			console.log('remove db failed!', dbName, error)
+			console.error('remove db failed!', dbName, error)
 			return Promise.reject(error)
 		}
 	}

@@ -25,7 +25,7 @@ const getAPIKey = async (db: PouchDB.Database & { name: string }) => {
 			return Promise.reject(result)
 		}
 	} catch (error) {
-		console.log('error getting api key!', error)
+		console.error('error getting api key!', error)
 		return Promise.reject(error)
 	}
 }

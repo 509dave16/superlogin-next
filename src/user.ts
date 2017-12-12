@@ -107,7 +107,7 @@ const user = (
 			}
 			return userDoc
 		} catch (error) {
-			console.log('error logging out user sessions!', error)
+			console.error('error logging out user sessions!', error)
 			return Promise.resolve(userDoc)
 		}
 	}
@@ -177,7 +177,7 @@ const user = (
 			}
 			return Promise.resolve(false)
 		} catch (error) {
-			console.log('error logging out others', error)
+			console.error('error logging out others', error)
 			return Promise.resolve(false)
 		}
 	}
@@ -253,7 +253,7 @@ const user = (
 				roles
 			})
 		} catch (error) {
-			console.log('error generating session!', error)
+			console.error('error generating session!', error)
 			return Promise.reject(error)
 		}
 	}
@@ -321,7 +321,7 @@ const user = (
 			}
 			return Promise.resolve('already in use')
 		} catch (error) {
-			console.log('error validating email', error)
+			console.error('error validating email', error)
 			throw new Error(error)
 		}
 	}
@@ -340,7 +340,7 @@ const user = (
 			}
 			return Promise.resolve('already in use')
 		} catch (error) {
-			console.log('error validating email/username', error)
+			console.error('error validating email/username', error)
 			throw new Error(error)
 		}
 	}
@@ -537,7 +537,7 @@ const user = (
 			emitter.emit('signup', newUser, 'local')
 			return Promise.resolve(newUser)
 		} catch (error) {
-			console.log('create user failed', error)
+			console.error('create user failed', error)
 			return Promise.reject({
 				error: 'Validation failed',
 				validationErrors: error,
@@ -649,7 +649,7 @@ const user = (
 			}
 			return finalUser
 		} catch (error) {
-			console.log('social auth failed!', error)
+			console.error('social auth failed!', error)
 			return undefined
 		}
 	}
@@ -753,7 +753,7 @@ const user = (
 				!Array.isArray(unLinkUser.providers) ||
 				unLinkUser.providers.length < 2
 			) {
-				console.log('unlink failed', unLinkUser)
+				console.error('unlink failed', unLinkUser)
 				return Promise.reject({
 					error: 'Unlink failed',
 					message: "You can't unlink your only provider!",
@@ -779,7 +779,7 @@ const user = (
 			})
 			return unLinkUser
 		} catch (error) {
-			console.log('error unlinking user', error)
+			console.error('error unlinking user', error)
 			return undefined
 		}
 	}
@@ -885,7 +885,7 @@ const user = (
 			emitter.emit('login', newSession, provider)
 			return newSession
 		} catch (error) {
-			console.log('failed creating a user session', error)
+			console.error('failed creating a user session', error)
 			return undefined
 		}
 	}
@@ -937,7 +937,7 @@ const user = (
 			emitter.emit('refresh', newSession)
 			return newSession
 		} catch (error) {
-			console.log('error refreshing session', error)
+			console.error('error refreshing session', error)
 			return undefined
 		}
 	}
@@ -1098,7 +1098,7 @@ const user = (
 			emitter.emit('forgot-password', forgotPwUser)
 			return forgotPwUser.forgotPassword
 		} catch (error) {
-			console.log('error in forgot password', error)
+			console.error('error in forgot password', error)
 			return undefined
 		}
 	}
@@ -1175,7 +1175,7 @@ const user = (
 			await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
 			return finalUser
 		} catch (error) {
-			console.log('error changing email', error)
+			console.error('error changing email', error)
 			return
 		}
 	}
@@ -1217,7 +1217,7 @@ const user = (
 			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
 			return userDoc
 		} catch (error) {
-			console.log('error adding user db', error)
+			console.error('error adding user db', error)
 			return undefined
 		}
 	}
@@ -1252,7 +1252,7 @@ const user = (
 									return Promise.resolve()
 								}
 							} catch (error) {
-								console.log('error removing user db', db, dbName, error)
+								console.error('error removing user db', db, dbName, error)
 							}
 						}
 						return Promise.resolve()
@@ -1271,7 +1271,7 @@ const user = (
 			}
 			return Promise.resolve()
 		} catch (error) {
-			console.log('error removing user db', error)
+			console.error('error removing user db', error)
 			return Promise.resolve()
 		}
 	}
@@ -1356,7 +1356,7 @@ const user = (
 			}
 			return Promise.resolve(false)
 		} catch (error) {
-			console.log('error logging out session', error)
+			console.error('error logging out session', error)
 			return Promise.resolve(false)
 		}
 	}
@@ -1380,7 +1380,7 @@ const user = (
 			)
 			return userDB.remove(removeUser)
 		} catch (error) {
-			console.log('error removing user!', error)
+			console.error('error removing user!', error)
 			return Promise.resolve()
 		}
 	}

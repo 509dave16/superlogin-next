@@ -81,7 +81,7 @@ const init = async (
 	try {
 		await seed(userDB, userDesign)
 	} catch (error) {
-		console.log('failed seeding design docs!', error)
+		console.error('failed seeding design docs!', error)
 	}
 	// Configure Passport local login and api keys
 	localConfig(config, passport, user)
