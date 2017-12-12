@@ -71,7 +71,6 @@
 		"@types/lodash.merge": "^4.6.3",
 		"@types/nodemailer": "^4.3.1",
 		"@types/nodemailer-stub-transport": "^1.1.4",
-		"@types/passport": "^0.4.1",
 		"@types/pouchdb-node": "^6.1.1",
 		"@types/pouchdb-upsert": "^2.2.1",
 		"@types/redis": "^2.8.2",

@@ -18,15 +18,17 @@ import loadRoutes from './routes'
 import User from './user'
 import util from './util'
 
-PouchDB.plugin(PouchSecurity)
-PouchDB.plugin(PouchUpsert)
+// tslint:disable-next-line:no-var-requires
+const userDesign = require('../designDocs/user-design')
+
+PouchDB.plugin(PouchSecurity).plugin(PouchUpsert)
 
 const init = async (
-	configData: IConfig,
+	configData: IUserConfig,
 	// tslint:disable-next-line:no-any
 	passport?: any,
-	userDB?: PouchDB.Database & { name: string },
-	couchAuthDB?: PouchDB.Database & { name: string }
+	userDB?: PouchDB.Database,
+	couchAuthDB?: PouchDB.Database
 ) => {
 	const config = Configure(configData, defaultConfig)
 	const router = express.Router()
@@ -39,52 +41,39 @@ const init = async (
 
 	// Some extra default settings if no config object is specified
 	if (!configData) {
-		config.setItem('testMode.noEmail', true)
-		config.setItem('testMode.debugEmail', true)
+		config.set(o => ({ ...o, testMode: { noEmail: true, debugEmail: true } }))
 	}
 
 	// Create the DBs if they weren't passed in
-	if (!userDB && config.getItem('dbServer.userDB')) {
-		userDB = new PouchDB(
-			util.getFullDBURL(config.getItem('dbServer'), config.getItem('dbServer.userDB'))
-		) as PouchDB.Database & { name: string }
+	if (!userDB) {
+		userDB = new PouchDB(util.getFullDBURL(config.get().dbServer, config.get().dbServer.userDB))
 	}
-	if (
-		!couchAuthDB &&
-		config.getItem('dbServer.couchAuthDB') &&
-		!config.getItem('dbServer.cloudant')
-	) {
+	if (!couchAuthDB && !config.get().dbServer.cloudant) {
 		couchAuthDB = new PouchDB(
-			util.getFullDBURL(config.getItem('dbServer'), config.getItem('dbServer.couchAuthDB'))
-		) as PouchDB.Database & { name: string }
+			util.getFullDBURL(config.get().dbServer, config.get().dbServer.couchAuthDB)
+		)
 	}
-	if (!userDB || typeof userDB !== 'object') {
+	if (!userDB) {
 		throw new Error(
 			'userDB must be passed in as the third argument or specified in the config file under dbServer.userDB'
 		)
 	}
 
 	const mailer = Mailer(config)
-	const user = User(
-		config,
-		userDB,
-		couchAuthDB as PouchDB.Database & { name: string },
-		mailer,
-		emitter
-	)
+	const user = User(config, userDB, couchAuthDB as PouchDB.Database, mailer, emitter)
 	const oauth = Oauth(router, passport, user, config)
 
 	// Seed design docs for the user database
-	// tslint:disable-next-line:no-var-requires
-	let userDesign = require('../designDocs/user-design')
-	userDesign = util.addProvidersToDesignDoc(config, userDesign)
+	const designWithProviders = util.addProvidersToDesignDoc(config, userDesign)
 	try {
-		await seed(userDB, userDesign)
+		await seed(userDB, designWithProviders)
 	} catch (error) {
 		console.error('failed seeding design docs!', error)
 	}
+
 	// Configure Passport local login and api keys
 	localConfig(config, passport, user)
+
 	// Load the routes
 	loadRoutes(config, router, passport, user)
 

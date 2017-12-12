@@ -44,4 +44,8 @@ const defaultConfig = {
 	}
 }
 
+declare global {
+	type IDefaultConfig = typeof defaultConfig
+}
+
 export default defaultConfig

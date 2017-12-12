@@ -5,16 +5,11 @@ import request from 'superagent'
 import url from 'url'
 import util from './../util'
 
-const getSecurityUrl = (db: PouchDB.Database & { name: string }) => {
-	const parsedUrl = url.parse(db.name)
-	parsedUrl.pathname += '/_security'
-	return url.format(parsedUrl)
-}
+const getSecurityUrl = (db: PouchDB.Database) =>
+	url.format(`${url.parse(db.name).pathname}/_security`)
 
-const getAPIKey = async (db: PouchDB.Database & { name: string }) => {
-	const parsedUrl = url.parse(db.name)
-	parsedUrl.pathname = '/_api/v2/api_keys'
-	const finalUrl = url.format(parsedUrl)
+const getAPIKey = async (db: PouchDB.Database) => {
+	const finalUrl = url.format(`${url.parse(db.name).pathname}/_api/v2/api_keys`)
 	try {
 		const res = await request.post(finalUrl)
 		if (res) {
@@ -30,13 +25,13 @@ const getAPIKey = async (db: PouchDB.Database & { name: string }) => {
 	}
 }
 
-const getSecurityCloudant = async (db: PouchDB.Database & { name: string }) => {
+const getSecurityCloudant = async (db: PouchDB.Database) => {
 	const finalUrl = getSecurityUrl(db)
 	const res = await request.get(finalUrl)
 	return Promise.resolve(JSON.parse(res.text))
 }
 
-const putSecurityCloudant = async (db: PouchDB.Database & { name: string }, doc: {}) => {
+const putSecurityCloudant = async (db: PouchDB.Database, doc: {}) => {
 	const finalUrl = getSecurityUrl(db)
 	try {
 		const res = await request
@@ -55,11 +50,7 @@ const storeKey = async () => Promise.resolve()
 // This is not needed with Cloudant
 const removeKeys = async () => Promise.resolve()
 
-const initSecurity = async (
-	db: PouchDB.Database & { name: string },
-	adminRoles: string[],
-	memberRoles: string[]
-) => {
+const initSecurity = async (db: PouchDB.Database, adminRoles: string[], memberRoles: string[]) => {
 	let changes = false
 	const secDoc = await db.get<ISecurityDoc>('_security')
 
@@ -95,7 +86,7 @@ const initSecurity = async (
 
 const authorizeKeys = async (
 	user_id: string,
-	db: PouchDB.Database & { name: string },
+	db: PouchDB.Database,
 	keys: string[],
 	permissions: string[],
 	roles: string[]
@@ -128,7 +119,7 @@ const authorizeKeys = async (
 	return putSecurityCloudant(db, secDoc)
 }
 
-const deauthorizeKeys = async (db: PouchDB.Database & { name: string }, keys: string[]) => {
+const deauthorizeKeys = async (db: PouchDB.Database, keys: string[]) => {
 	// cast keys to an Array
 	keys = util.toArray(keys)
 	const secDoc = await getSecurityCloudant(db)

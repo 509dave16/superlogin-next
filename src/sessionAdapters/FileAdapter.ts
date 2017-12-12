@@ -6,7 +6,7 @@ import path from 'path'
 const fs = Promise.promisifyAll(fsBase)
 
 const FileAdapter = (config: IConfigure): IAdapter => {
-	const sessionsRoot = config.getItem('session.file.sessionsRoot')
+	const sessionsRoot = config.get().session.file.sessionsRoot
 	const _sessionFolder = path.join(process.env.PWD as string, sessionsRoot)
 	console.log('File Adapter loaded')
 
@@ -16,13 +16,11 @@ const FileAdapter = (config: IConfigure): IAdapter => {
 			base: `${key}.json`
 		})
 
-	const storeKey = (key: string, life: number, data: {}) => {
-		const now = Date.now()
-		return fs.outputJsonAsync(_getFilepath(key), {
+	const storeKey = (key: string, life: number, data: {}) =>
+		fs.outputJsonAsync(_getFilepath(key), {
 			data,
-			expire: now + life
+			expire: Date.now() + life
 		})
-	}
 
 	const getKey = (key: string) => {
 		const now = Date.now()

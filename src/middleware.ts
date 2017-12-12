@@ -41,38 +41,28 @@ const middleware = (passport: PassportStatic) => {
 		if (!req.user) {
 			return next(superloginError)
 		}
-		let denied = true
-		const { roles } = req.user
-		if (roles && roles.length) {
-			possibleRoles.forEach(role => (roles.indexOf(role) > -1 ? (denied = false) : undefined))
+		const { roles }: { roles?: string[] } = req.user
+		if (Array.isArray(roles)) {
+			const hasRole = possibleRoles.findIndex(role => roles.includes(role)) > -1
+			if (hasRole) {
+				return next()
+			}
 		}
-		if (denied) {
-			res.status(forbiddenError.status)
-			res.json(forbiddenError)
-		} else {
-			next()
-		}
-		return undefined
+		return res.status(forbiddenError.status).json(forbiddenError)
 	}
 
 	const requireAllRoles = (requiredRoles: string[]): RequestHandler => (req, res, next) => {
 		if (!req.user) {
 			return next(superloginError)
 		}
-		let denied = false
-		const { roles } = req.user
-		if (!roles || !roles.length) {
-			denied = true
-		} else {
-			requiredRoles.forEach(role => (roles.indexOf(role) === -1 ? (denied = true) : undefined))
+		const { roles }: { roles?: string[] } = req.user
+		if (Array.isArray(roles)) {
+			const missingRole = requiredRoles.findIndex(role => !roles.includes(role)) > -1
+			if (!missingRole) {
+				return next()
+			}
 		}
-		if (denied) {
-			res.status(forbiddenError.status)
-			res.json(forbiddenError)
-		} else {
-			next()
-		}
-		return undefined
+		return res.status(forbiddenError.status).json(forbiddenError)
 	}
 
 	return {

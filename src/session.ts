@@ -8,31 +8,28 @@ import util from './util'
 
 const tokenPrefix = 'token'
 
+const secureToken = (token: ISession) => {
+	const { salt, derived_key, ...finalToken } = token
+	return finalToken
+}
+
 const Session = (config: IConfigure) => {
-	let adapter: IAdapter
-	const sessionAdapter = config.getItem('session.adapter')
-	if (sessionAdapter === 'redis') {
-		adapter = RedisAdapter(config)
-	} else if (sessionAdapter === 'file') {
-		adapter = FileAdapter(config)
-	} else {
-		adapter = MemoryAdapter()
-	}
+	const sessionAdapter = config.get().session.adapter
+	const adapter =
+		sessionAdapter === 'redis'
+			? RedisAdapter(config)
+			: sessionAdapter === 'file' ? FileAdapter(config) : MemoryAdapter()
 
 	return {
 		confirmToken: async (key: string, password: string) => {
-			let token
 			try {
 				const result = await adapter.getKey(`${tokenPrefix}:${key}`)
 				if (!result) {
 					return Promise.reject('invalid token')
 				}
-				token = JSON.parse(result)
+				const token: ISession = JSON.parse(result)
 				await util.verifyPassword(token, password)
-
-				delete token.salt
-				delete token.derived_key
-				return token
+				return secureToken(token)
 			} catch (error) {
 				console.error('confirm token error', error)
 				return Promise.reject('invalid token')
@@ -44,26 +41,33 @@ const Session = (config: IConfigure) => {
 			}
 			return adapter.deleteKeys(keys.map(key => `${tokenPrefix}:${key}`))
 		},
-		fetchToken: async (key: string) =>
-			adapter.getKey(`${tokenPrefix}:${key}`).then(result => JSON.parse(result)),
-		storeToken: async (token: ISession) => {
-			const finalToken = Object.assign({}, token)
+		fetchToken: async (key: string) => {
 			try {
-				if (!finalToken.password && finalToken.salt && finalToken.derived_key) {
+				return adapter.getKey(`${tokenPrefix}:${key}`).then(result => JSON.parse(result))
+			} catch (error) {
+				console.error('fetchToken error!', error)
+				return undefined
+			}
+		},
+		storeToken: async (token: ISession) => {
+			const { password, salt, derived_key, key, expires } = token
+			try {
+				if (!password && salt && derived_key) {
 					await adapter.storeKey(
-						`${tokenPrefix}:${finalToken.key}`,
-						finalToken.expires - Date.now(),
-						JSON.stringify(finalToken)
+						`${tokenPrefix}:${key}`,
+						expires - Date.now(),
+						JSON.stringify(token)
 					)
-					delete finalToken.salt
-					delete finalToken.derived_key
-					return finalToken
+					return secureToken(token)
 				}
-				const hash = await util.hashPassword(finalToken.password)
+				const hash = await util.hashPassword(password)
+				const finalToken = {
+					...token,
+					salt: hash.salt,
+					derived_key: hash.derived_key,
+					password: undefined
+				}
 
-				finalToken.salt = hash.salt
-				finalToken.derived_key = hash.derived_key
-				delete finalToken.password
 				await adapter.storeKey(
 					`${tokenPrefix}:${finalToken.key}`,
 					finalToken.expires - Date.now(),
@@ -72,7 +76,7 @@ const Session = (config: IConfigure) => {
 
 				delete finalToken.salt
 				delete finalToken.derived_key
-				return finalToken
+				return secureToken(token)
 			} catch (error) {
 				console.error('error storing token', error)
 				return undefined

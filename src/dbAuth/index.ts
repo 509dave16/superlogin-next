@@ -3,53 +3,40 @@ global.Promise = require('bluebird')
 
 import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
-import request from 'superagent'
 import util from './../util'
 import CloudantAdapter from './cloudant'
 import CouchAdapter from './couchdb'
 
 // Escapes any characters that are illegal in a CouchDB database name using percent codes inside parenthesis
 // Example: 'My.name@example.com' => 'my(2e)name(40)example(2e)com'
-const getLegalDBName = (input: string) => {
-	input = input.toLowerCase()
-	let output = encodeURIComponent(input)
-	output = output.replace(/\./g, '%2E')
-	output = output.replace(/!/g, '%21')
-	output = output.replace(/~/g, '%7E')
-	output = output.replace(/\*/g, '%2A')
-	output = output.replace(/'/g, '%27')
-	output = output.replace(/\(/g, '%28')
-	output = output.replace(/\)/g, '%29')
-	output = output.replace(/-/g, '%2D')
-	output = output.toLowerCase()
-	output = output.replace(/(%..)/g, esc => {
-		esc = esc.substr(1)
-		return `(${esc})`
-	})
-	return output
-}
+const getLegalDBName = (input: string) =>
+	encodeURIComponent(input.toLowerCase())
+		.replace(/\./g, '%2E')
+		.replace(/!/g, '%21')
+		.replace(/~/g, '%7E')
+		.replace(/\*/g, '%2A')
+		.replace(/!/g, '%21')
+		.replace(/~/g, '%7E')
+		.replace(/\*/g, '%2A')
+		.replace(/'/g, '%27')
+		.replace(/\(/g, '%28')
+		.replace(/\)/g, '%29')
+		.replace(/-/g, '%2D')
+		.toLowerCase()
+		.replace(/(%..)/g, esc => `(${esc.substr(1)})`)
 
-const dbauth = (
-	config: IConfigure,
-	userDB: PouchDB.Database & { name: string },
-	couchAuthDB: PouchDB.Database
-) => {
-	const cloudant = config.getItem('dbServer.cloudant')
+const dbauth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: PouchDB.Database) => {
+	const cloudant = config.get().dbServer.cloudant
 
-	let adapter: IDBAdapter
-
-	if (cloudant) {
-		adapter = CloudantAdapter
-	} else {
-		adapter = CouchAdapter(couchAuthDB)
-	}
+	const adapter: IDBAdapter = cloudant ? CloudantAdapter : CouchAdapter(couchAuthDB)
 
 	const createDB = async (dbName: string) => {
-		const finalUrl = `${util.getDBURL(config.getItem('dbServer'))}/${dbName}`
+		const finalUrl = `${util.getDBURL(config.get().dbServer)}/${dbName}`
 		try {
-			const res = await request.put(finalUrl).send({})
-			return JSON.parse(res.text)
+			const db = new PouchDB(finalUrl)
+			return await db.info()
 		} catch (error) {
+			console.error('create DB error', error)
 			return Promise.reject(error)
 		}
 	}
@@ -58,19 +45,15 @@ const dbauth = (
 		if (!docName) {
 			return null
 		}
-		let designDoc
-		let designDocDir = config.getItem('userDBs.designDocDir')
-		if (!designDocDir) {
-			designDocDir = __dirname
-		}
+		const userDBs = config.get().userDBs
+		const designDocDir = userDBs ? userDBs.designDocDir : __dirname
 		try {
 			// tslint:disable-next-line:non-literal-require
-			designDoc = require(`${designDocDir}/${docName}`)
+			return require(`${designDocDir}/${docName}`)
 		} catch (err) {
 			console.warn(`Design doc: ${designDocDir}/${docName} not found.`)
-			designDoc = null
+			return undefined
 		}
-		return designDoc
 	}
 
 	const storeKey = async (
@@ -83,33 +66,28 @@ const dbauth = (
 
 	const removeKeys = async (keys: string | string[]) => adapter.removeKeys(keys)
 
-	// tslint:disable-next-line:no-any
 	const authorizeKeys = async (
 		user_id: string,
-		db: PouchDB.Database & { name: string },
+		db: PouchDB.Database,
 		keys: string[],
 		permissions?: string[],
 		roles?: string[]
 	) => adapter.authorizeKeys(user_id, db, keys, permissions, roles)
 
-	// tslint:disable-next-line:no-any
-	const deauthorizeKeys = async (db: any, keys: string[] | string) =>
+	const deauthorizeKeys = async (db: PouchDB.Database, keys: string[] | string) =>
 		adapter.deauthorizeKeys(db, keys)
 
 	const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
 		// If keys is not specified we will deauthorize all of the users sessions
-		if (!keys) {
-			keys = util.getSessions(userDoc)
-		}
-		keys = util.toArray(keys)
+		const finalKeys = keys ? util.toArray(keys) : util.getSessions(userDoc)
 		if (userDoc.personalDBs && typeof userDoc.personalDBs === 'object') {
 			return Promise.all(
 				Object.keys(userDoc.personalDBs).map(async personalDB => {
 					try {
-						const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
+						const db = new PouchDB(`${util.getDBURL(config.get().dbServer)}/${personalDB}`, {
 							skip_setup: true
 						})
-						return deauthorizeKeys(db, keys)
+						return deauthorizeKeys(db, finalKeys)
 					} catch (error) {
 						console.error('error deauthorizing db!', error)
 						return Promise.resolve()
@@ -117,30 +95,33 @@ const dbauth = (
 				})
 			)
 		}
+		console.error('error deauthorizing db - user has no personalDBs')
 		return Promise.resolve(false)
 	}
 
 	const authorizeUserSessions = async (
 		user_id: string,
 		personalDBs: {},
-		sessionKeys: string | string[],
+		keys: string | string[],
 		roles: string[]
 	) => {
+		const { userDBs } = config.get()
 		try {
-			sessionKeys = util.toArray(sessionKeys)
+			const sessionKeys = util.toArray(keys)
 			return Promise.all(
 				Object.keys(personalDBs).map(async personalDB => {
-					let { permissions } = personalDBs[personalDB]
-					if (!permissions) {
-						permissions =
-							config.getItem(`userDBs.model.${personalDBs[personalDB].name}.permissions`) ||
-							config.getItem('userDBs.model._default.permissions') ||
-							[]
-					}
-					const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${personalDB}`, {
+					const { permissions, name } = personalDBs[personalDB]
+					const configModel = userDBs && userDBs.model
+					const finalPermissions =
+						permissions ||
+						(configModel
+							? (configModel[name] && configModel[name].permissions) ||
+								(configModel._default && configModel._default.permissions)
+							: undefined)
+					const db = new PouchDB(`${util.getDBURL(config.get().dbServer)}/${personalDB}`, {
 						skip_setup: true
-					}) as PouchDB.Database & { name: string }
-					return authorizeKeys(user_id, db, sessionKeys as string[], permissions, roles)
+					}) as PouchDB.Database
+					return authorizeKeys(user_id, db, sessionKeys, finalPermissions, roles)
 				})
 			)
 		} catch (error) {
@@ -155,29 +136,19 @@ const dbauth = (
 		designDocs?: string[],
 		type?: string,
 		permissions?: string[],
-		adminRoles?: string[],
-		memberRoles?: string[]
+		aRoles?: string[],
+		mRoles?: string[]
 	) => {
-		adminRoles = adminRoles || []
-		memberRoles = memberRoles || []
+		const { userDBs } = config.get()
+		const adminRoles = aRoles || []
+		const memberRoles = mRoles || []
 		// Create and the database and seed it if a designDoc is specified
-		const prefix = config.getItem('userDBs.privatePrefix')
-			? `${config.getItem('userDBs.privatePrefix')}_`
-			: ''
-		let finalDBName: string
-		let newDB: PouchDB.Database & { name: string }
+		const prefix = userDBs && userDBs.privatePrefix ? `${userDBs.privatePrefix}_` : ''
+		const username = getLegalDBName(userDoc._id)
 		// Make sure we have a legal database name
-		let username = userDoc._id
-		username = getLegalDBName(username)
-		if (type === 'shared') {
-			finalDBName = dbName
-		} else {
-			finalDBName = `${prefix}${dbName}$${username}`
-		}
+		const finalDBName = type === 'shared' ? dbName : `${prefix}${dbName}$${username}`
 		try {
-			newDB = new PouchDB(
-				`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
-			) as PouchDB.Database & { name: string }
+			const newDB = new PouchDB(`${util.getDBURL(config.get().dbServer)}/${finalDBName}`)
 			await adapter.initSecurity(newDB, adminRoles, memberRoles)
 
 			// Seed the design docs
@@ -187,6 +158,7 @@ const dbauth = (
 						const dDoc = getDesignDoc(ddName)
 						if (dDoc) {
 							await seed(newDB, dDoc)
+							return Promise.resolve()
 						} else {
 							console.warn(`Failed to locate design doc: ${ddName}`)
 							return Promise.resolve()
@@ -197,10 +169,9 @@ const dbauth = (
 
 			if (userDoc.session) {
 				// Authorize the user's existing DB keys to access the new database
-				const keysToAuthorize: string[] = Object.keys(userDoc.session).filter(k => {
-					const session = userDoc.session[k]
-					return session.expires && session.expires > Date.now()
-				})
+				const keysToAuthorize = Object.keys(userDoc.session).filter(
+					k => userDoc.session[k] && userDoc.session[k] > Date.now()
+				)
 				if (keysToAuthorize.length > 0) {
 					await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
 				}
@@ -213,33 +184,33 @@ const dbauth = (
 	}
 
 	const removeExpiredKeys = async () => {
-		const keysByUser = {}
-		const userDocs = {}
-		const expiredKeys: string[] = []
 		try {
 			// query a list of expired keys by user
-			const results = await userDB.query('auth/expiredKeys', {
+			const results = await userDB.query<IUserDoc>('auth/expiredKeys', {
 				endkey: Date.now(),
 				include_docs: true
 			})
-			// group by user
-			results.rows.forEach(row => {
-				keysByUser[row.value.user] = row.value.key
-				expiredKeys.push(row.value.key)
-				// Add the user doc if it doesn't already exist
-				if (typeof userDocs[row.value.user] === 'undefined') {
-					userDocs[row.value.user] = row.doc
-				}
-				// remove each key from user.session
-				if (userDocs[row.value.user].session) {
-					Object.keys(userDocs[row.value.user].session).forEach(
-						session =>
-							row.value.key === session
-								? delete userDocs[row.value.user].session[session]
-								: undefined
-					)
-				}
-			})
+			const { expiredKeys, userDocs, keysByUser } = results.rows.reduce(
+				(r, { value, doc }) => {
+					if (!value) {
+						return r
+					}
+					const { user, key } = value
+					// Append expired keys
+					const newExpiredKeys = [...r.expiredKeys, key]
+					const newKeysByUser = { ...r.keysByUser, [user]: key }
+
+					const userDoc = doc && doc[user]
+
+					if (userDoc) {
+						const { [key]: deleted, ...finalSession } = userDoc.session
+						const newUserDocs = { ...r.userDocs, [user]: { ...userDoc, session: finalSession } }
+						return { expiredKeys: newExpiredKeys, userDocs: newUserDocs, keysByUser: newKeysByUser }
+					}
+					return { ...r, expiredKeys: newExpiredKeys, keysByUser: newKeysByUser }
+				},
+				{ expiredKeys: [''], userDocs: {}, keysByUser: {} }
+			)
 			await removeKeys(expiredKeys)
 			await Promise.all(
 				Object.keys(keysByUser).map(async user => deauthorizeUser(userDocs[user], keysByUser[user]))
@@ -249,66 +220,57 @@ const dbauth = (
 			return expiredKeys
 		} catch (error) {
 			console.error('error expiring keys', error)
-			return expiredKeys
+			return undefined
 		}
 	}
 
 	const getDBConfig = (dbName: string, type?: string) => {
-		const dbConfig: {
-			adminRoles?: string[]
-			memberRoles?: string[]
-			permissions?: string[]
-			designDocs?: string[]
-			type?: string
-			name: string
-		} = {
-			name: dbName
+		const { userDBs } = config.get()
+		if (userDBs) {
+			const { defaultSecurityRoles, model } = userDBs
+
+			const adminRoles = (defaultSecurityRoles && defaultSecurityRoles.admins) || []
+			const memberRoles = (defaultSecurityRoles && defaultSecurityRoles.members) || []
+
+			const dbConfigRef = model && model[dbName]
+			if (dbConfigRef) {
+				const refAdminRoles = dbConfigRef.adminRoles || []
+				const refMemberRoles = dbConfigRef.memberRoles || []
+				return {
+					name: dbName,
+					permissions: dbConfigRef.permissions || [],
+					designDocs: dbConfigRef.designDocs || [],
+					type: type || dbConfigRef.type || 'private',
+					adminRoles: [...adminRoles.filter(r => !refAdminRoles.includes(r)), ...refAdminRoles],
+					memberRoles: [...memberRoles.filter(r => !refMemberRoles.includes(r)), ...refMemberRoles]
+				}
+			} else if (model && model._default) {
+				return {
+					name: dbName,
+					permissions: model._default.permissions || [],
+					designDocs: !type || type === 'private' ? model._default.designDocs || [] : [],
+					type: type || 'private',
+					adminRoles,
+					memberRoles
+				}
+			}
 		}
-		dbConfig.adminRoles = config.getItem('userDBs.defaultSecurityRoles.admins') || []
-		dbConfig.memberRoles = config.getItem('userDBs.defaultSecurityRoles.members') || []
-		const dbConfigRef = `userDBs.model.${dbName}`
-		if (config.getItem(dbConfigRef)) {
-			dbConfig.permissions = config.getItem(`${dbConfigRef}.permissions`) || []
-			dbConfig.designDocs = config.getItem(`${dbConfigRef}.designDocs`) || []
-			dbConfig.type = type || config.getItem(`${dbConfigRef}.type`) || 'private'
-			const dbAdminRoles = config.getItem(`${dbConfigRef}.adminRoles`)
-			const dbMemberRoles = config.getItem(`${dbConfigRef}.memberRoles`)
-			if (dbAdminRoles && Array.isArray(dbAdminRoles)) {
-				dbAdminRoles.forEach(role => {
-					if (role && dbConfig.adminRoles && dbConfig.adminRoles.indexOf(role) === -1) {
-						dbConfig.adminRoles.push(role)
-					}
-				})
-			}
-			if (dbMemberRoles && dbMemberRoles instanceof Array) {
-				dbMemberRoles.forEach(role => {
-					if (role && dbConfig.memberRoles && dbConfig.memberRoles.indexOf(role) === -1) {
-						dbConfig.memberRoles.push(role)
-					}
-				})
-			}
-		} else if (config.getItem('userDBs.model._default')) {
-			dbConfig.permissions = config.getItem('userDBs.model._default.permissions') || []
-			// Only add the default design doc to a private database
-			if (!type || type === 'private') {
-				dbConfig.designDocs = config.getItem('userDBs.model._default.designDocs') || []
-			} else {
-				dbConfig.designDocs = []
-			}
-			dbConfig.type = type || 'private'
-		} else {
-			dbConfig.type = type || 'private'
+		return {
+			name: dbName,
+			type: type || 'private',
+			designDocs: [],
+			permissions: [],
+			adminRoles: [],
+			memberRoles: []
 		}
-		return dbConfig
 	}
 
 	const removeDB = async (dbName: string) => {
 		try {
-			const db = new PouchDB(`${util.getDBURL(config.getItem('dbServer'))}/${dbName}`, {
+			const db = new PouchDB(`${util.getDBURL(config.get().dbServer)}/${dbName}`, {
 				skip_setup: true
 			})
-			await db.destroy()
-			return Promise.resolve()
+			return await db.destroy()
 		} catch (error) {
 			console.error('remove db failed!', dbName, error)
 			return Promise.reject(error)

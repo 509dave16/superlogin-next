@@ -15,31 +15,22 @@ interface IPromRedis extends RedisClient {
 }
 
 const RedisAdapter = (config: IConfigure): IAdapter => {
-	let redisClient: IPromRedis
-
-	if (!config.getItem('session.redis.unix_socket')) {
-		if (config.getItem('session.redis.url')) {
-			redisClient = redis.createClient(
-				config.getItem('session.redis.url'),
-				config.getItem('session.redis.options')
-			) as IPromRedis
-		} else {
-			redisClient = redis.createClient(
-				config.getItem('session.redis.port') || 6379,
-				config.getItem('session.redis.host') || '127.0.0.1',
-				config.getItem('session.redis.options')
-			) as IPromRedis
-		}
-	} else {
-		redisClient = redis.createClient(
-			config.getItem('session.redis.unix_socket'),
-			config.getItem('session.redis.options')
-		) as IPromRedis
+	const { redis: redisConfig } = config.get().session
+	if (!redisConfig) {
+		throw new Error('No redis configuration found')
 	}
 
+	const { unix_socket, url, port, host, options, password } = redisConfig
+
+	const redisClient = unix_socket
+		? (redis.createClient(unix_socket, options) as IPromRedis)
+		: url
+			? (redis.createClient(url, options) as IPromRedis)
+			: (redis.createClient(port || 6379, host || '127.0.0.1', options) as IPromRedis)
+
 	// Authenticate with Redis if necessary
-	if (config.getItem('session.redis.password')) {
-		redisClient.authAsync(config.getItem('session.redis.password')).catch((err: string) => {
+	if (password) {
+		redisClient.authAsync(password).catch((err: string) => {
 			throw new Error(err)
 		})
 	}

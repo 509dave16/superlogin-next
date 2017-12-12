@@ -16,7 +16,7 @@ const USER_REGEXP = /^[a-z0-9_-]{3,16}$/
 
 const user = (
 	config: IConfigure,
-	userDB: PouchDB.Database & { name: string },
+	userDB: PouchDB.Database,
 	couchAuthDB: PouchDB.Database,
 	mailer: IMailer,
 	emitter: EventEmitter
@@ -28,11 +28,11 @@ const user = (
 
 	// Token valid for 24 hours by default
 	// Forget password token life
-	const tokenLife = config.getItem('security.tokenLife') || 86400
+	const tokenLife = config.get().security.tokenLife || 86400
 	// Session token life
-	const sessionLife = config.getItem('security.sessionLife') || 86400
+	const sessionLife = config.get().security.sessionLife || 86400
 
-	const emailUsername = config.getItem('local.emailUsername')
+	const emailUsername = config.get().local.emailUsername
 
 	const logActivity = async (
 		user_id: string,
@@ -42,46 +42,55 @@ const user = (
 		userDoc: IUserDoc,
 		saveDoc?: boolean
 	) => {
-		const logSize = config.getItem('security.userActivityLogSize')
-		if (!logSize) {
+		try {
+			const logSize = config.get().security.userActivityLogSize
+			if (!logSize) {
+				return Promise.resolve(userDoc)
+			}
+			const thisUser = userDoc || (await userDB.get<IUserDoc>(user_id))
+
+			if (!thisUser.activity || !Array.isArray(thisUser.activity)) {
+				thisUser.activity = []
+			}
+			const activity = [
+				{
+					timestamp: new Date().toISOString(),
+					action,
+					provider,
+					ip: req.ip
+				},
+				...(Array.isArray(thisUser.activity) ? thisUser.activity : [])
+			]
+
+			if (activity.length > logSize) {
+				activity.splice(logSize - 1, activity.length - 1)
+			}
+
+			const finalUser = {
+				...userDoc,
+				activity
+			}
+
+			if (saveDoc) {
+				await userDB.upsert<IUserDoc>(thisUser._id, oldUser => {
+					const { activity: _, ...oldData } = oldUser
+					return merge({}, oldData, finalUser)
+				})
+			}
+			return Promise.resolve(userDoc)
+		} catch (error) {
+			console.error('error logging activity', error)
 			return Promise.resolve(userDoc)
 		}
-		let theUser = userDoc
-		if (!theUser) {
-			if (saveDoc !== false) {
-				saveDoc = true
-			}
-			theUser = await userDB.get<IUserDoc>(user_id)
-		}
-		userDoc = theUser
-		if (!userDoc.activity || !Array.isArray(userDoc.activity)) {
-			userDoc.activity = []
-		}
-		const entry = {
-			timestamp: new Date().toISOString(),
-			action,
-			provider,
-			ip: req.ip
-		}
-		userDoc.activity.unshift(entry)
-		while (userDoc.activity.length > logSize) {
-			userDoc.activity.pop()
-		}
-		if (saveDoc) {
-			await userDB.upsert(userDoc._id, oldUser => merge({}, oldUser, userDoc))
-		}
-		return Promise.resolve(userDoc)
 	}
 
 	const logoutUserSessions = async (userDoc: IUserDoc, op: string, currentSession?: string) => {
 		try {
-			// When op is 'other' it will logout all sessions except for the specified 'currentSession'
-			let sessions: string[] = []
-			if (op === 'all' || op === 'other') {
-				sessions = util.getSessions(userDoc)
-			} else if (op === 'expired') {
-				sessions = util.getExpiredSessions(userDoc, Date.now())
-			}
+			const sessions =
+				op === 'all' || op === 'other'
+					? util.getSessions(userDoc)
+					: util.getExpiredSessions(userDoc, Date.now())
+
 			if (op === 'other' && currentSession) {
 				// Remove the current session from the list of sessions we are going to delete
 				const index = sessions.indexOf(currentSession)
@@ -183,8 +192,9 @@ const user = (
 	}
 
 	const addUserDBs = async (newUser: IUserDoc) => {
+		const { userDBs } = config.get()
 		// Add personal DBs
-		if (!config.getItem('userDBs.defaultDBs')) {
+		if (!userDBs || !userDBs.defaultDBs) {
 			return Promise.resolve(newUser)
 		}
 		newUser.personalDBs = {}
@@ -196,11 +206,11 @@ const user = (
 					const finalDBName = await dbAuth.addUserDB(
 						newUser,
 						userDBName,
-						dbConfig.designDocs,
+						dbConfig.designDocs || [],
 						type,
-						dbConfig.permissions,
-						dbConfig.adminRoles,
-						dbConfig.memberRoles
+						dbConfig.permissions || [],
+						dbConfig.adminRoles || [],
+						dbConfig.memberRoles || []
 					)
 					delete dbConfig.permissions
 					delete dbConfig.adminRoles
@@ -212,16 +222,14 @@ const user = (
 			)
 
 		// Just in case defaultDBs is not specified
-		let defaultPrivateDBs = config.getItem('userDBs.defaultDBs.private')
-		if (!Array.isArray(defaultPrivateDBs)) {
-			defaultPrivateDBs = []
+		const defaultPrivateDBs = userDBs.defaultDBs && userDBs.defaultDBs.private
+		if (Array.isArray(defaultPrivateDBs)) {
+			await processUserDBs(defaultPrivateDBs, 'private')
 		}
-		await processUserDBs(defaultPrivateDBs, 'private')
-		let defaultSharedDBs = config.getItem('userDBs.defaultDBs.shared')
-		if (!Array.isArray(defaultSharedDBs)) {
-			defaultSharedDBs = []
+		const defaultSharedDBs = userDBs.defaultDBs.shared
+		if (Array.isArray(defaultSharedDBs)) {
+			await processUserDBs(defaultSharedDBs, 'shared')
 		}
-		await processUserDBs(defaultSharedDBs, 'shared')
 
 		return Promise.resolve(newUser)
 	}
@@ -229,7 +237,7 @@ const user = (
 	const generateSession = async (username: string, roles: string[]) => {
 		try {
 			let key: { key: string; password: string }
-			if (config.getItem('dbServer.cloudant')) {
+			if (config.get().dbServer.cloudant) {
 				key = (await cloudant.getAPIKey(userDB)) as { key: string; password: string }
 			} else {
 				let token = util.URLSafeUUID()
@@ -365,7 +373,7 @@ const user = (
 	passwordConstraints = Object.assign(
 		{},
 		passwordConstraints,
-		config.getItem('local.passwordConstraints')
+		config.get().local.passwordConstraints
 	)
 
 	const userModel = {
@@ -398,7 +406,7 @@ const user = (
 		},
 		static: {
 			type: 'user',
-			roles: config.getItem('security.defaultRoles'),
+			roles: config.get().security.defaultRoles,
 			providers: ['local']
 		},
 		rename: {
@@ -486,13 +494,13 @@ const user = (
 	const create = async (form: {}, req: { ip: string }) => {
 		req = req || {}
 		let finalUserModel = userModel
-		const newUserModel = config.getItem('userModel')
+		const newUserModel = config.get().userModel
 		if (typeof newUserModel === 'object') {
 			let whitelist: string[] = []
 			if (newUserModel.whitelist) {
 				whitelist = util.arrayUnion(userModel.whitelist, newUserModel.whitelist)
 			}
-			finalUserModel = Object.assign({}, userModel, config.getItem('userModel'))
+			finalUserModel = Object.assign({}, userModel, config.get().userModel)
 			finalUserModel.whitelist =
 				whitelist && whitelist.length > 0 ? whitelist : finalUserModel.whitelist
 		}
@@ -504,7 +512,7 @@ const user = (
 			if (emailUsername) {
 				newUser._id = newUser.email
 			}
-			if (config.getItem('local.sendConfirmEmail')) {
+			if (config.get().local.sendConfirmEmail) {
 				newUser.unverifiedEmail = {
 					email: newUser.email,
 					token: util.URLSafeUUID()
@@ -513,7 +521,7 @@ const user = (
 			}
 			const hash = await util.hashPassword(newUser.password)
 			// Store password hash
-			newUser.roles = config.getItem('security.defaultRoles')
+			newUser.roles = config.get().security.defaultRoles
 			newUser.local = hash
 			delete newUser.password
 			delete newUser.confirmPassword
@@ -528,7 +536,7 @@ const user = (
 			const result = await userDB.upsert(newUser._id, oldUser => merge({}, oldUser, newUser))
 
 			newUser._rev = result.rev as string
-			if (config.getItem('local.sendConfirmEmail')) {
+			if (config.get().local.sendConfirmEmail) {
 				mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
 					req,
 					user: newUser
@@ -577,7 +585,7 @@ const user = (
 				}
 				userDoc.providers = [provider]
 				userDoc.type = 'user'
-				userDoc.roles = config.getItem('security.defaultRoles')
+				userDoc.roles = config.get().security.defaultRoles
 				userDoc.signUp = {
 					provider,
 					timestamp: new Date().toISOString(),
@@ -862,17 +870,18 @@ const user = (
 			if (typeof createSessionUser.personalDBs === 'object') {
 				const userDBs = {}
 				let publicURL: string
-				if (config.getItem('dbServer.publicURL')) {
-					const dbObj = url.parse(config.getItem('dbServer.publicURL')) as {
+				const configPublicURL = config.get().dbServer.publicURL
+				if (configPublicURL) {
+					const dbObj = url.parse(configPublicURL) as {
 						auth: string
 						format(): string
 					}
 					dbObj.auth = `${newSession.token}:${newSession.password}`
 					publicURL = dbObj.format()
 				} else {
-					publicURL = `${config.getItem('dbServer.protocol')}${newSession.token}:${
+					publicURL = `${config.get().dbServer.protocol}${newSession.token}:${
 						newSession.password
-					}@${config.getItem('dbServer.host')}/`
+					}@${config.get().dbServer.host}/`
 				}
 				Object.keys(createSessionUser.personalDBs).forEach(finalDBName => {
 					userDBs[createSessionUser.personalDBs[finalDBName].name] = `${publicURL}${finalDBName}`
@@ -892,7 +901,7 @@ const user = (
 
 	const handleFailedLogin = async (loginUser: IUserDoc, req: { ip: string }) => {
 		req = req || {}
-		const maxFailedLogins = config.getItem('security.maxFailedLogins')
+		const maxFailedLogins = config.get().security.maxFailedLogins
 		if (!maxFailedLogins) {
 			return Promise.resolve()
 		}
@@ -905,7 +914,7 @@ const user = (
 		loginUser.local.failedLoginAttempts += 1
 		if (loginUser.local.failedLoginAttempts > maxFailedLogins) {
 			loginUser.local.failedLoginAttempts = 0
-			loginUser.local.lockedUntil = Date.now() + config.getItem('security.lockoutTime') * 1000
+			loginUser.local.lockedUntil = Date.now() + config.get().security.lockoutTime * 1000
 		}
 		const finalUser = await logActivity(loginUser._id, 'failed login', 'local', req, loginUser)
 		await userDB.upsert(finalUser._id, oldUser => merge({}, oldUser, finalUser))
@@ -1150,7 +1159,7 @@ const user = (
 			}
 			changeEmailUser = await userDB.get<IUserDoc>(user_id)
 
-			if (config.getItem('local.sendConfirmEmail')) {
+			if (config.get().local.sendConfirmEmail) {
 				changeEmailUser.unverifiedEmail = {
 					email: newEmail,
 					token: util.URLSafeUUID()

@@ -2,58 +2,46 @@
 global.Promise = require('bluebird')
 import ejs, { Data } from 'ejs'
 import fs from 'fs'
-import nodemailer, { Transporter } from 'nodemailer'
+import nodemailer from 'nodemailer'
 import stubTransport from 'nodemailer-stub-transport'
 
 const mailer = (config: IConfigure): IMailer => {
+	const configMailer = config.get().mailer
+	const configTestMode = config.get().testMode
+	const transport =
+		!configMailer || (configTestMode && configTestMode.noEmail)
+			? stubTransport()
+			: configMailer.transport || configMailer.options
+
 	// Initialize the transport mechanism with nodermailer
-	let transporter: Transporter
-	const customTransport = config.getItem('mailer.transport')
-	if (config.getItem('testMode.noEmail')) {
-		transporter = nodemailer.createTransport(stubTransport())
-	} else if (customTransport) {
-		transporter = nodemailer.createTransport(customTransport(
-			config.getItem('mailer.options')
-		) as string)
-	} else {
-		transporter = nodemailer.createTransport(config.getItem('mailer.options'))
-	}
+	const transporter = nodemailer.createTransport(transport)
+	const sendEmail = Promise.promisify(transporter.sendMail, { context: transporter })
+
 	return {
 		sendEmail: (templateName: string, email: string, locals: Data) => {
 			// load the template and parse it
-			const templateFile = config.getItem(`emails.${templateName}.template`)
-			if (!templateFile) {
+			const template = config.get().emails[templateName]
+			if (!template) {
 				return Promise.reject(`No template found for "${templateName}".`)
 			}
-			const template = fs.readFileSync(templateFile, 'utf8')
-			if (!template) {
-				return Promise.reject(`Failed to locate template file: ${templateFile}`)
+			const { subject, format, template: templatePath } = template
+			const templateFile = fs.readFileSync(templatePath, 'utf8')
+			if (!templateFile) {
+				return Promise.reject(`Failed to locate template file: ${templatePath}`)
 			}
-			const body = ejs.render(template, locals)
+			const body = ejs.render(templateFile, locals)
 			// form the email
-			const subject = config.getItem(`emails.${templateName}.subject`)
-			const format = config.getItem(`emails.${templateName}.format`)
-			const mailOptions: {
-				from: string
-				to: string
-				subject: string
-				html?: string
-				text?: string
-			} = {
-				from: config.getItem('mailer.fromEmail'),
+			const mailOptions = {
+				from: configMailer ? configMailer.fromEmail : undefined,
 				to: email,
-				subject
+				subject,
+				html: format === 'html' ? body : undefined,
+				text: format !== 'html' ? body : undefined
 			}
-			if (format === 'html') {
-				mailOptions.html = body
-			} else {
-				mailOptions.text = body
-			}
-			if (config.getItem('testMode.debugEmail')) {
+			if (configTestMode && configTestMode.debugEmail) {
 				console.log(mailOptions)
 			}
 			// send the message
-			const sendEmail = Promise.promisify(transporter.sendMail, { context: transporter })
 			return sendEmail(mailOptions)
 		}
 	}

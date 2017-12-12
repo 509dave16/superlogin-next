@@ -1,6 +1,7 @@
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
+import merge from 'lodash.merge'
 import util from '../util'
 
 const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
@@ -11,13 +12,6 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		expires: number,
 		roles: string[]
 	) => {
-		if (roles instanceof Array) {
-			// Clone roles to not overwrite original
-			roles = roles.slice(0)
-		} else {
-			roles = []
-		}
-		roles.unshift(`user:${username}`)
 		const newKey = {
 			_id: `org.couchdb.user:${key}`,
 			type: 'user',
@@ -25,37 +19,35 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			user_id: username,
 			password,
 			expires,
-			roles
+			roles: [`user:${username}`, ...roles]
 		}
-		await couchAuthDB.upsert(newKey._id, () => newKey)
-		newKey._id = key
-		return newKey
+		await couchAuthDB.upsert(newKey._id, oldKey => merge({}, oldKey, newKey))
+		return {
+			...newKey,
+			_id: key
+		}
 	}
 
 	const removeKeys = async (keys: string | string[]) => {
 		keys = util.toArray(keys)
 		// Transform the list to contain the CouchDB _user ids
-		const keylist: string[] = keys.map(key => `org.couchdb.user:${key}`)
-		const toDelete: {
-			_id: string
-			_rev: string
-			_deleted: boolean
-		}[] = []
+		const keylist = keys.map(key => `org.couchdb.user:${key}`)
 		try {
-			// tslint:disable-next-line:no-any
-			const keyDocs: any = await couchAuthDB.allDocs({ keys: keylist })
+			const keyDocs = await couchAuthDB.allDocs({ keys: keylist })
 			if (keyDocs.rows && keyDocs.rows.length > 0) {
-				keyDocs.rows.forEach(
-					(row: { id: string; error: string; value: { rev: string; _deleted: boolean } }) => {
-						if (!row.error && (!row.value || !row.value._deleted)) {
-							const deletion = {
-								_id: row.id,
-								_rev: row.value.rev,
-								_deleted: true
-							}
-							toDelete.push(deletion)
-						}
-					}
+				const toDelete = keyDocs.rows.reduce(
+					(r: {}[], row) =>
+						!row.value || !row.value.deleted
+							? [
+									...r,
+									{
+										_id: row.id,
+										_rev: row.value.rev,
+										_deleted: true
+									}
+								]
+							: r,
+					[]
 				)
 				if (toDelete.length) {
 					return couchAuthDB.bulkDocs(toDelete)
@@ -69,7 +61,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 	}
 
 	const initSecurity = async (
-		db: PouchDB.Database & { name: string },
+		db: PouchDB.Database,
 		adminRoles: string[],
 		memberRoles: string[]
 	) => {
@@ -86,23 +78,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		}
 	}
 
-	const authorizeKeys = async (
-		user_id: string,
-		db: PouchDB.Database & { name: string },
-		keys: string[] | string
-	) => {
-		// Check if keys is an object and convert it to an array
-		if (typeof keys === 'object' && !Array.isArray(keys)) {
-			const keysArr: string[] = []
-			Object.keys(keys).forEach(theKey => {
-				keysArr.push(theKey)
-			})
-			keys = keysArr
-		}
-		if (!Array.isArray(keys)) {
-			// Convert keys to an array if it is just a string
-			keys = util.toArray(keys)
-		}
+	const authorizeKeys = async (user_id: string, db: PouchDB.Database, keys: string[]) => {
 		try {
 			const security = db.security()
 			await security.fetch()
@@ -115,10 +91,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		}
 	}
 
-	const deauthorizeKeys = async (
-		db: PouchDB.Database & { name: string },
-		keys: string[] | string
-	) => {
+	const deauthorizeKeys = async (db: PouchDB.Database, keys: string[] | string) => {
 		keys = util.toArray(keys)
 		try {
 			const security = db.security()
@@ -146,15 +119,12 @@ declare global {
 		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): Promise<void | boolean>
 		authorizeKeys(
 			user_id: string,
-			db: PouchDB.Database & { name: string },
+			db: PouchDB.Database,
 			keys: string[] | string,
 			permissions?: string[],
 			roles?: string[]
 		): Promise<void | boolean>
-		deauthorizeKeys(
-			db: PouchDB.Database & { name: string },
-			keys: string[] | string
-		): Promise<void | boolean>
+		deauthorizeKeys(db: PouchDB.Database, keys: string[] | string): Promise<void | boolean>
 		removeKeys(keys: string[] | string): Promise<boolean | PouchDB.Core.Response[]>
 		storeKey(
 			username: string,

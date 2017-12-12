@@ -9,9 +9,9 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 	router.post(
 		'/login',
 		(req, res, next) => {
-			passport.authenticate('local', (err, passportUser, info) => {
-				if (err) {
-					return next(err)
+			passport.authenticate('local', (error, passportUser, info) => {
+				if (error) {
+					return res.status(500).json({ error })
 				}
 				if (!passportUser) {
 					// Authentication failed
@@ -90,7 +90,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 	// Setting up the auth api
 	router.post('/register', (req, res, next) => {
 		user.create(req.body, req).then((newUser: IUserDoc) => {
-			if (config.getItem('security.loginOnRegistration')) {
+			if (config.get().security.loginOnRegistration) {
 				return user
 					.createSession(newUser._id, 'local', req.ip)
 					.then((mySession: {}) => res.status(200).json(mySession), next)
@@ -107,7 +107,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 
 	router.post('/password-reset', (req, res, next) => {
 		user.resetPassword(req.body, req).then((currentUser: IUserDoc) => {
-			if (config.getItem('security.loginOnPasswordReset')) {
+			if (config.get().security.loginOnPasswordReset) {
 				return user
 					.createSession(currentUser._id, 'local', req.ip)
 					.then((mySession: {}) => res.status(200).json(mySession), next)
@@ -142,7 +142,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 	)
 
 	router.get('/confirm-email/:token', (req, res, next) => {
-		const redirectURL = config.getItem('local.confirmEmailRedirectURL')
+		const redirectURL = config.get().local.confirmEmailRedirectURL
 		if (!req.params.token) {
 			const err = { error: 'Email verification token required' }
 			if (redirectURL) {
@@ -188,7 +188,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 		if (!req.params.email) {
 			return next({ error: 'Email required', status: 400 })
 		}
-		if (config.getItem('local.emailUsername')) {
+		if (config.get().local.emailUsername) {
 			promise = user.validateEmailUsername(req.params.email)
 		} else {
 			promise = user.validateEmail(req.params.email)
@@ -215,11 +215,12 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 	// route to test token authentication
 	router.get('/session', passport.authenticate('bearer', { session: false }), (req, res) => {
 		const { user: sessionUser } = req
-		sessionUser.user_id = sessionUser._id
-		delete sessionUser._id
-		// user.token = user.key;
-		delete sessionUser.key
-		res.status(200).json(sessionUser)
+		if (!sessionUser) {
+			console.error('session auth error - no user provided')
+			return res.status(401).json({ error: 'no user provided' })
+		}
+		const { _id: user_id, key, ...finalUser } = sessionUser
+		res.status(200).json({ ...finalUser, user_id })
 	})
 }
 

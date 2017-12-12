@@ -41,59 +41,32 @@ const verifyPassword = async (
 	if (!salt || !derived_key) {
 		return Promise.reject(false)
 	}
-	const hash = await getHash(password, salt)
-	if (hash === derived_key) {
-		return Promise.resolve(true)
+	const hash: string = await getHash(password, salt)
+	if (
+		hash.length !== derived_key.length ||
+		// Protect against timing attacks
+		hash.split('').findIndex((char, idx) => char !== derived_key[idx]) > -1
+	) {
+		return Promise.reject(false)
 	}
-	return Promise.reject(false)
+	return Promise.resolve(true)
 }
 
-const getDBURL = (db: { protocol: string; user: string; password: string; host: string }) => {
-	let url
-	if (db.user) {
-		url = `${db.protocol + encodeURIComponent(db.user)}:${encodeURIComponent(db.password)}@${
-			db.host
-		}`
-	} else {
-		url = db.protocol + db.host
-	}
-	return url
-}
+const getDBURL = ({ user, protocol, host, password }: IConfiguration['dbServer']) =>
+	user
+		? `${protocol + encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}`
+		: `${protocol}${host}`
 
-const getFullDBURL = (
-	dbConfig: { protocol: string; user: string; password: string; host: string },
-	dbName: string
-) => `${getDBURL(dbConfig)}/${dbName}`
+const getFullDBURL = (dbServer: IConfiguration['dbServer'], dbName: string) =>
+	`${getDBURL(dbServer)}/${dbName}`
 
 // tslint:disable-next-line:no-any
-const toArray = <T>(obj: T | T[]): T[] => {
-	if (!(obj instanceof Array)) {
-		obj = [obj]
-	}
-	return obj
-}
+const toArray = <T>(obj: T | T[]): T[] => (Array.isArray(obj) ? obj : [obj])
 
-const getSessions = (userDoc: IUserDoc) => {
-	const sessions: string[] = []
-	if (userDoc.session) {
-		Object.keys(userDoc.session).forEach(mySession => {
-			sessions.push(mySession)
-		})
-	}
-	return sessions
-}
+const getSessions = ({ session }: IUserDoc) => (session ? Object.keys(session) : [])
 
-const getExpiredSessions = (userDoc: { session: {} }, now: number) => {
-	const sessions: string[] = []
-	if (userDoc.session) {
-		Object.keys(userDoc.session).forEach(mySession => {
-			if (userDoc.session[mySession].expires <= now) {
-				sessions.push(mySession)
-			}
-		})
-	}
-	return sessions
-}
+const getExpiredSessions = ({ session }: IUserDoc, now: number) =>
+	session ? Object.keys(session).filter(k => !session[k].expires || session.expires <= now) : []
 
 // Takes a req object and returns the bearer token, or undefined if it is not found
 const getSessionToken = (req: Request) => {
@@ -117,92 +90,23 @@ const getSessionToken = (req: Request) => {
 
 // Generates views for each registered provider in the user design doc
 const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} } }) => {
-	const providers = config.getItem('providers')
+	const providers = config.get().providers
 	if (!providers) {
 		return ddoc
 	}
 	const ddocTemplate = (provider: string) =>
 		`function(doc){ if(doc.${provider} && doc.${provider}.profile) { emit(doc.${provider}.profile.id,null); } }`
-
-	Object.keys(providers).forEach(provider => {
-		ddoc.auth.views[provider] = { map: ddocTemplate(provider) }
-	})
-	return ddoc
+	return {
+		...ddoc,
+		...Object.keys(providers).reduce(
+			(r, provider) => ({ ...r, [provider]: { map: ddocTemplate(provider) } }),
+			{}
+		)
+	}
 }
 
 // Capitalizes the first letter of a string
 const capitalizeFirstLetter = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
-
-/**
- * Access nested JavaScript objects with string key
- * http://stackoverflow.com/questions/6491463/accessing-nested-javascript-objects-with-string-key
- *
- * @param {object} obj The base object you want to get a reference to
- * @param {string} str The string addressing the part of the object you want
- * @return {object|undefined} a reference to the requested key or undefined if not found
- */
-
-const getObjectRef = (obj: {}, str: string) => {
-	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
-	str = str.replace(/^\./, '') // strip a leading dot
-	const pList = str.split('.')
-	while (pList.length) {
-		const n = pList.shift()
-		if (n && obj && n in obj) {
-			obj = obj[n]
-		} else {
-			return undefined
-		}
-	}
-	return obj
-}
-
-/**
- * Dynamically set property of nested object
- * http://stackoverflow.com/questions/18936915/dynamically-set-property-of-nested-object
- *
- * @param {object} obj The base object you want to set the property in
- * @param {string} str The string addressing the part of the object you want
- * @param {*} val The value you want to set the property to
- * @return {*} the value the reference was set to
- */
-
-const setObjectRef = (obj: {}, str: string, val: string | boolean) => {
-	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
-	str = str.replace(/^\./, '') // strip a leading dot
-	const pList = str.split('.')
-	const len = pList.length
-	for (let i = 0; i < len - 1; i += 1) {
-		const elem = pList[i]
-		if (!obj[elem]) {
-			obj[elem] = {}
-		}
-		obj = obj[elem]
-	}
-	obj[pList[len - 1]] = val
-	return val
-}
-
-/**
- * Dynamically delete property of nested object
- *
- * @param {object} obj The base object you want to set the property in
- * @param {string} str The string addressing the part of the object you want
- * @return {boolean} true if successful
- */
-
-const delObjectRef = (obj: {}, str: string) => {
-	str = str.replace(/\[(\w+)\]/g, '.$1') // convert indexes to properties
-	str = str.replace(/^\./, '') // strip a leading dot
-	const pList = str.split('.')
-	const len = pList.length
-	pList.forEach(elem => (!obj || !obj[elem] ? false : (obj = obj[elem])))
-	if (obj) {
-		delete obj[pList[len - 1]]
-	}
-
-	return true
-}
 
 /**
  * Concatenates two arrays and removes duplicate elements
@@ -213,7 +117,7 @@ const delObjectRef = (obj: {}, str: string) => {
  */
 
 // tslint:disable-next-line:no-any
-const arrayUnion = (a: {}[], b: string): any[] => {
+const arrayUnion = (a: any[], b: any[]): any[] => {
 	const result = a.concat(b)
 	for (let i = 0; i < result.length; i += 1) {
 		for (let j = i + 1; j < result.length; j += 1) {
@@ -237,9 +141,6 @@ export default {
 	getSessionToken,
 	addProvidersToDesignDoc,
 	capitalizeFirstLetter,
-	getObjectRef,
-	setObjectRef,
-	delObjectRef,
 	arrayUnion,
 	toArray
 }

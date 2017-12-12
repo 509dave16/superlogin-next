@@ -248,7 +248,6 @@ describe('User Model', function() {
 				throw new Error('Validation errors should have been generated')
 			})
 			.catch(function(err) {
-				console.log('cool', err)
 				if (err.validationErrors) {
 					expect(err.validationErrors.email[0]).to.equal('Email already in use')
 					expect(err.validationErrors.username[0]).to.equal('Username already in use')
