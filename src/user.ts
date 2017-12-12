@@ -529,7 +529,7 @@ const user = (
 
 			newUser._rev = result.rev as string
 			if (config.getItem('local.sendConfirmEmail')) {
-				await mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
+				mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
 					req,
 					user: newUser
 				})
@@ -1155,7 +1155,7 @@ const user = (
 					email: newEmail,
 					token: util.URLSafeUUID()
 				}
-				await mailer.sendEmail('confirmEmail', changeEmailUser.unverifiedEmail.email, {
+				mailer.sendEmail('confirmEmail', changeEmailUser.unverifiedEmail.email, {
 					req,
 					user: changeEmailUser
 				})

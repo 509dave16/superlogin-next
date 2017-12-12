@@ -4,14 +4,6 @@ global.Promise = require('bluebird')
 import util from '../util'
 
 const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
-	// tslint:disable-next-line:no-any
-	const putSecurityCouch = (db: any, doc: {}) =>
-		db.request({
-			method: 'PUT',
-			url: '_security',
-			body: doc
-		})
-
 	const storeKey = async (
 		username: string,
 		key: string,
@@ -79,38 +71,13 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		adminRoles: string[],
 		memberRoles: string[]
 	) => {
-		let changes = false
 		try {
-			const secDoc = await db.get<ISecurityDoc>('_security')
+			const security = db.security()
+			await security.fetch()
 
-			if (!secDoc.admins) {
-				secDoc.admins = { names: [], roles: [] }
-			}
-			if (!secDoc.admins.roles) {
-				secDoc.admins.roles = []
-			}
-			if (!secDoc.members) {
-				secDoc.members = { names: [], roles: [] }
-			}
-			if (!secDoc.members.roles) {
-				secDoc.admins.roles = []
-			}
-			adminRoles.forEach(role => {
-				if (secDoc.admins.roles.indexOf(role) === -1) {
-					changes = true
-					secDoc.admins.roles.push(role)
-				}
-			})
-			memberRoles.forEach(role => {
-				if (secDoc.members.roles.indexOf(role) === -1) {
-					changes = true
-					secDoc.members.roles.push(role)
-				}
-			})
-			if (changes) {
-				return putSecurityCouch(db, secDoc)
-			}
-			return Promise.resolve(false)
+			security.members.roles.add(memberRoles)
+			security.admins.roles.add(adminRoles)
+			return security.save()
 		} catch (error) {
 			console.log('error initializing security', error)
 			return Promise.resolve(false)
@@ -122,7 +89,6 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		db: PouchDB.Database & { name: string },
 		keys: string[] | string
 	) => {
-		let secDoc: ISecurityDoc
 		// Check if keys is an object and convert it to an array
 		if (typeof keys === 'object' && !Array.isArray(keys)) {
 			const keysArr: string[] = []
@@ -136,27 +102,11 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			keys = util.toArray(keys)
 		}
 		try {
-			const doc = await db.get<ISecurityDoc>('_security')
+			const security = db.security()
+			await security.fetch()
 
-			secDoc = doc
-			if (!secDoc.members) {
-				secDoc.members = { names: [], roles: [] }
-			}
-			if (!secDoc.members.names) {
-				secDoc.members.names = []
-			}
-			let changes = false
-			keys.forEach(key => {
-				const index = secDoc.members.names.indexOf(key)
-				if (index === -1) {
-					secDoc.members.names.push(key)
-					changes = true
-				}
-			})
-			if (changes) {
-				return putSecurityCouch(db, secDoc)
-			}
-			return Promise.resolve(false)
+			security.members.roles.add(keys)
+			return security.save()
 		} catch (error) {
 			console.log('error authorizing keys', error)
 			return Promise.resolve(false)
@@ -167,26 +117,13 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		db: PouchDB.Database & { name: string },
 		keys: string[] | string
 	) => {
-		let secDoc: ISecurityDoc
 		keys = util.toArray(keys)
 		try {
-			const doc = await db.get<ISecurityDoc>('_security')
-			secDoc = doc
-			if (!secDoc.members || !secDoc.members.names) {
-				return Promise.resolve(false)
-			}
-			let changes = false
-			keys.forEach(key => {
-				const index = secDoc.members.names.indexOf(key)
-				if (index > -1) {
-					secDoc.members.names.splice(index, 1)
-					changes = true
-				}
-			})
-			if (changes) {
-				return putSecurityCouch(db, secDoc)
-			}
-			return Promise.resolve(false)
+			const security = db.security()
+			await security.fetch()
+
+			security.members.roles.remove(keys)
+			return security.save()
 		} catch (error) {
 			console.log('error deauthorizing keys!', error)
 			return Promise.resolve(false)
@@ -204,15 +141,18 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 
 declare global {
 	interface IDBAdapter {
-		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): Promise<void>
+		initSecurity(db: {}, adminRoles: string[], memberRoles: string[]): Promise<void | boolean>
 		authorizeKeys(
 			user_id: string,
 			db: PouchDB.Database & { name: string },
 			keys: string[] | string,
 			permissions?: string[],
 			roles?: string[]
-		): Promise<void>
-		deauthorizeKeys(db: PouchDB.Database & { name: string }, keys: string[] | string): Promise<void>
+		): Promise<void | boolean>
+		deauthorizeKeys(
+			db: PouchDB.Database & { name: string },
+			keys: string[] | string
+		): Promise<void | boolean>
 		removeKeys(keys: string[] | string): Promise<boolean | PouchDB.Core.Response[]>
 		storeKey(
 			username: string,

@@ -6,6 +6,7 @@ import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
 
 import defaultPassport from 'passport'
+import PouchSecurity from 'pouchdb-security-helper'
 import PouchUpsert from 'pouchdb-upsert'
 import defaultConfig from './config/default.config'
 import Configure from './configure'
@@ -17,6 +18,7 @@ import loadRoutes from './routes'
 import User from './user'
 import util from './util'
 
+PouchDB.plugin(PouchSecurity)
 PouchDB.plugin(PouchUpsert)
 
 const init = async (

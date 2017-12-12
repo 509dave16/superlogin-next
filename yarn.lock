@@ -2789,7 +2789,7 @@ lodash@3.7.x:
   version "3.7.0"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-3.7.0.tgz#3678bd8ab995057c07ade836ed2ef087da811d45"
 
-lodash@^4.0.0, lodash@^4.12.0, lodash@^4.2.0:
+lodash@^4.0.0, lodash@^4.12.0, lodash@^4.17.2, lodash@^4.2.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
@@ -3437,6 +3437,12 @@ pouchdb-promise@^6.1.2:
   resolved "https://registry.yarnpkg.com/pouchdb-promise/-/pouchdb-promise-6.3.4.tgz#817052fa2320293dd2dbc4be2f1cc81b02be30c2"
   dependencies:
     lie "3.1.1"
+
+pouchdb-security-helper@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/pouchdb-security-helper/-/pouchdb-security-helper-1.1.1.tgz#9b26c6e12275bce651bc285a34228c261edd7838"
+  dependencies:
+    lodash "^4.17.2"
 
 pouchdb-seed-design@^0.3.0:
   version "0.3.0"
