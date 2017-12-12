@@ -201,9 +201,10 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 			)
 		}
 		const html = ejs.render(template, { error: err.message, session: null, link: null })
-		console.error(err)
+		console.error('oauthError', err)
+		console.dir('oauthError', err)
 		if (err.stack) {
-			console.error(err.stack)
+			console.error('oauthError stack', err.stack)
 		}
 		res.status(400).send(html)
 	}
@@ -220,9 +221,10 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		} else {
 			status = 401
 		}
-		console.error(err)
+		console.error('tokenAuthErrorHandler', err)
+		console.dir('tokenAuthErrorHandler', err)
 		if (err.stack) {
-			console.error(err.stack)
+			console.error('tokenAuthErrorHandler stack', err.stack)
 			delete err.stack
 		}
 		res.status(status).json(err)

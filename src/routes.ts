@@ -48,7 +48,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 		return user.logoutSession(sessionToken).then(
 			() => res.status(200).json({ ok: true, success: 'Logged out' }),
 			(err: string) => {
-				console.error('Logout failed')
+				console.error('Logout failed', err)
 				return next(err)
 			}
 		)
@@ -63,7 +63,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 					res.status(200).json({ success: 'Other sessions logged out' })
 				},
 				(err: string) => {
-					console.error('Logout failed')
+					console.error('Logout failed', err)
 					return next(err)
 				}
 			)
@@ -81,7 +81,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 		return user.logoutUser(null, sessionToken).then(
 			() => res.status(200).json({ success: 'Logged out' }),
 			(err: string) => {
-				console.error('Logout-all failed')
+				console.error('Logout-all failed', err)
 				return next(err)
 			}
 		)
