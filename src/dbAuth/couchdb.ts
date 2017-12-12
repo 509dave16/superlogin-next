@@ -105,7 +105,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			const security = db.security()
 			await security.fetch()
 
-			security.members.roles.add(keys)
+			security.members.names.add(keys)
 			return security.save()
 		} catch (error) {
 			console.log('error authorizing keys', error)
@@ -122,7 +122,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			const security = db.security()
 			await security.fetch()
 
-			security.members.roles.remove(keys)
+			security.members.names.remove(keys)
 			return security.save()
 		} catch (error) {
 			console.log('error deauthorizing keys!', error)
