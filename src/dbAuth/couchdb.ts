@@ -72,6 +72,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 		memberRoles: string[]
 	) => {
 		try {
+			console.log(' initSecurity', adminRoles, memberRoles)
 			const security = db.security()
 			await security.fetch()
 
@@ -102,6 +103,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 			keys = util.toArray(keys)
 		}
 		try {
+			console.log('authorizeKeys', keys)
 			const security = db.security()
 			await security.fetch()
 
@@ -119,6 +121,7 @@ const couchdb = (couchAuthDB: PouchDB.Database): IDBAdapter => {
 	) => {
 		keys = util.toArray(keys)
 		try {
+			console.log('deauthorizeKeys', keys)
 			const security = db.security()
 			await security.fetch()
 

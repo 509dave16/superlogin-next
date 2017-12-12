@@ -1187,14 +1187,12 @@ const user = (
 		designDocs: string[],
 		permissions: string[]
 	) => {
-		let userDoc: IUserDoc
 		try {
 			const dbConfig = dbAuth.getDBConfig(dbName, type || 'private')
 			dbConfig.designDocs = designDocs || dbConfig.designDocs || ''
 			dbConfig.permissions = permissions || dbConfig.permissions
-			const result = await userDB.get<IUserDoc>(user_id)
+			const userDoc = await userDB.get<IUserDoc>(user_id)
 
-			userDoc = result
 			const finalDBName = await dbAuth.addUserDB(
 				userDoc,
 				dbName,

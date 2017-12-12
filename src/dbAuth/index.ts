@@ -175,10 +175,12 @@ const dbauth = (
 			finalDBName = `${prefix}${dbName}$${username}`
 		}
 		try {
-			await createDB(finalDBName)
+			// await createDB(finalDBName)
+			console.log('creating db', finalDBName)
 			newDB = new PouchDB(
 				`${util.getDBURL(config.getItem('dbServer'))}/${finalDBName}`
 			) as PouchDB.Database & { name: string }
+			console.log('initSecurity', adminRoles, memberRoles)
 			await adapter.initSecurity(newDB, adminRoles, memberRoles)
 
 			// Seed the design docs
@@ -196,19 +198,12 @@ const dbauth = (
 				)
 			}
 
-			// Refresh the user doc incase it changed
-			userDoc = await userDB.get<IUserDoc>(userDoc._id)
-
 			// Authorize the user's existing DB keys to access the new database
-			const keysToAuthorize: string[] = []
-			if (userDoc.session) {
-				Object.keys(userDoc.session).forEach(key => {
-					const { expires } = userDoc.session[key]
-					if (expires && expires > Date.now()) {
-						keysToAuthorize.push(key)
-					}
-				})
-			}
+			const keysToAuthorize: string[] = Object.keys(userDoc.session).filter(k => {
+				const session = userDoc.session[k]
+				return session.expires && session.expires > Date.now()
+			})
+			console.log('keysToAuthorize', keysToAuthorize)
 			if (keysToAuthorize.length > 0) {
 				await authorizeKeys(userDoc._id, newDB, keysToAuthorize, permissions, userDoc.roles)
 			}
