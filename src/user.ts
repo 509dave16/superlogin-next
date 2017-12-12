@@ -650,7 +650,7 @@ const user = (
 			return Promise.resolve(finalUser)
 		} catch (error) {
 			console.log('social auth failed!', error)
-			return Promise.reject(error)
+			throw new Error(error)
 		}
 	}
 
@@ -1224,44 +1224,49 @@ const user = (
 		let removeUser: IUserDoc
 		let update = false
 		let dbID: string
-		const userDoc = await userDB.get<IUserDoc>(user_id)
-		removeUser = userDoc
-		if (removeUser.personalDBs && typeof removeUser.personalDBs === 'object') {
-			await Promise.all(
-				Object.keys(removeUser.personalDBs).map(async db => {
-					if (removeUser.personalDBs[db].name === dbName) {
-						dbID = db
-						const { type } = removeUser.personalDBs[db]
-						delete removeUser.personalDBs[db]
-						update = true
-						try {
-							if (type === 'private' && deletePrivate) {
-								await dbAuth.removeDB(db)
-								return Promise.resolve()
+		try {
+			const userDoc = await userDB.get<IUserDoc>(user_id)
+			removeUser = userDoc
+			if (removeUser.personalDBs && typeof removeUser.personalDBs === 'object') {
+				await Promise.all(
+					Object.keys(removeUser.personalDBs).map(async db => {
+						if (removeUser.personalDBs[db].name === dbName) {
+							dbID = db
+							const { type } = removeUser.personalDBs[db]
+							delete removeUser.personalDBs[db]
+							update = true
+							try {
+								if (type === 'private' && deletePrivate) {
+									await dbAuth.removeDB(db)
+									return Promise.resolve()
+								}
+								if (type === 'shared' && deleteShared) {
+									await dbAuth.removeDB(db)
+									return Promise.resolve()
+								}
+							} catch (error) {
+								console.log('error removing user db', db, dbName, error)
 							}
-							if (type === 'shared' && deleteShared) {
-								await dbAuth.removeDB(db)
-								return Promise.resolve()
-							}
-						} catch (error) {
-							console.log('error removing user db', db, dbName, error)
 						}
-					}
-					return Promise.resolve()
-				})
-			)
-		}
+						return Promise.resolve()
+					})
+				)
+			}
 
-		if (update) {
-			emitter.emit('user-db-removed', user_id, dbName)
-			return userDB.upsert<IUserDoc>(removeUser._id, oldUser => {
-				if (oldUser.personalDBs[dbID]) {
-					delete oldUser.personalDBs[dbID]
-				}
-				return merge({}, oldUser, removeUser)
-			})
+			if (update) {
+				emitter.emit('user-db-removed', user_id, dbName)
+				return userDB.upsert<IUserDoc>(removeUser._id, oldUser => {
+					if (oldUser.personalDBs[dbID]) {
+						delete oldUser.personalDBs[dbID]
+					}
+					return merge({}, oldUser, removeUser)
+				})
+			}
+			return Promise.resolve()
+		} catch (error) {
+			console.log('error removing user db', error)
+			return Promise.resolve()
 		}
-		return Promise.resolve()
 	}
 
 	const logoutUser = async (user_id: string, session_id: string) => {

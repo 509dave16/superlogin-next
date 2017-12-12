@@ -188,25 +188,30 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		req: Request,
 		res: Response
 	) => {
-		let template
-		if (config.getItem('testMode.oauthTest')) {
-			template = fs.readFileSync(
-				path.join(__dirname, '../templates/oauth/auth-callback-test.ejs'),
-				'utf8'
-			)
-		} else {
-			template = fs.readFileSync(
-				path.join(__dirname, '../templates/oauth/auth-callback.ejs'),
-				'utf8'
-			)
+		try {
+			let template
+			if (config.getItem('testMode.oauthTest')) {
+				template = fs.readFileSync(
+					path.join(__dirname, '../templates/oauth/auth-callback-test.ejs'),
+					'utf8'
+				)
+			} else {
+				template = fs.readFileSync(
+					path.join(__dirname, '../templates/oauth/auth-callback.ejs'),
+					'utf8'
+				)
+			}
+			const html = ejs.render(template, { error: err.message, session: null, link: null })
+			console.error('oauthError', err)
+			console.dir('oauthError', err)
+			if (err.stack) {
+				console.error('oauthError stack', err.stack)
+			}
+			res.status(400).send(html)
+		} catch (error) {
+			console.log('failed sending oauthError', error)
+			return res.status(500)
 		}
-		const html = ejs.render(template, { error: err.message, session: null, link: null })
-		console.error('oauthError', err)
-		console.dir('oauthError', err)
-		if (err.stack) {
-			console.error('oauthError stack', err.stack)
-		}
-		res.status(400).send(html)
 	}
 
 	// Handles errors if authentication from access_token provider fails
@@ -215,19 +220,24 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
 		req: Request,
 		res: Response
 	) => {
-		let status
-		if (req.user && req.user._id) {
-			status = 403
-		} else {
-			status = 401
+		try {
+			let status
+			if (req.user && req.user._id) {
+				status = 403
+			} else {
+				status = 401
+			}
+			console.error('tokenAuthErrorHandler', err)
+			console.dir('tokenAuthErrorHandler', err)
+			if (err.stack) {
+				console.error('tokenAuthErrorHandler stack', err.stack)
+				delete err.stack
+			}
+			res.status(status).json(err)
+		} catch (error) {
+			console.log('failed sending oauthError', error)
+			return res.status(500)
 		}
-		console.error('tokenAuthErrorHandler', err)
-		console.dir('tokenAuthErrorHandler', err)
-		if (err.stack) {
-			console.error('tokenAuthErrorHandler stack', err.stack)
-			delete err.stack
-		}
-		res.status(status).json(err)
 	}
 
 	// Framework to register OAuth providers with passport
