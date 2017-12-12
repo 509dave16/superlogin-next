@@ -650,7 +650,7 @@ const user = (
 			return Promise.resolve(finalUser)
 		} catch (error) {
 			console.log('social auth failed!', error)
-			throw new Error(error)
+			Promise.resolve()
 		}
 	}
 
