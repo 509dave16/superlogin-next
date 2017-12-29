@@ -1,75 +1,80 @@
-'use strict';
-var PouchDB = require('pouchdb');
-var Promise = require('bluebird');
-var expect = require('chai').expect;
-var cloudant = require('../lib/dbauth/cloudant');
+'use strict'
+var PouchDB = require('pouchdb-node')
+var Promise = require('bluebird')
+var expect = require('chai').expect
+var cloudant = require('../lib/dbAuth/cloudant')
 
-var cloudantUrl = 'https://' + process.env.CLOUDANT_USER + ':' + process.env.CLOUDANT_PASS + '@' + process.env.CLOUDANT_USER + '.cloudant.com';
-var testDB;
-var previous;
+var cloudantUrl =
+  'https://' +
+  process.env.CLOUDANT_USER +
+  ':' +
+  process.env.CLOUDANT_PASS +
+  '@' +
+  process.env.CLOUDANT_USER +
+  '.cloudant.com'
+var testDB
+var previous
 
 describe('Cloudant', function() {
+  var apiKey
 
-  var apiKey;
-
-  previous = Promise.resolve();
+  previous = Promise.resolve()
 
   before(function() {
     return previous.then(function() {
-      testDB = new PouchDB(cloudantUrl + '/temp_test');
-      return testDB;
-    });
-  });
+      testDB = new PouchDB(cloudantUrl + '/temp_test')
+      return testDB
+    })
+  })
 
   after(function() {
-    this.timeout(5000);
+    this.timeout(5000)
     return previous.finally(function() {
-      return testDB.destroy();
+      return testDB.destroy()
       // return Promise.resolve();
-    });
-  });
+    })
+  })
 
   it('should generate an API key', function() {
-    this.timeout(5000);
+    this.timeout(5000)
     return previous
       .then(function() {
-        return cloudant.getAPIKey(testDB);
+        return cloudant.getAPIKey(testDB)
       })
       .then(function(result) {
-        expect(result.ok).to.equal(true);
-        expect(result.key).to.be.a('string');
-        apiKey = result.key;
-      });
-  });
+        expect(result.ok).to.equal(true)
+        expect(result.key).to.be.a('string')
+        apiKey = result.key
+      })
+  })
 
   it('should authorize keys', function() {
-    this.timeout(10000);
+    this.timeout(10000)
     return previous
       .then(function() {
-        return cloudant.authorizeKeys('test_user', testDB, ['abc123', 'def456']);
+        return cloudant.authorizeKeys('test_user', testDB, ['abc123', 'def456'])
       })
       .then(function() {
-        return cloudant.getSecurityCloudant(testDB);
+        return cloudant.getSecurityCloudant(testDB)
       })
       .then(function(secDoc) {
-        expect(secDoc.cloudant.abc123[0]).to.equal('user:test_user');
-        expect(secDoc.cloudant.abc123[1]).to.equal('_reader');
-      });
-  });
+        expect(secDoc.cloudant.abc123[0]).to.equal('user:test_user')
+        expect(secDoc.cloudant.abc123[1]).to.equal('_reader')
+      })
+  })
 
   it('should deauthorize a key', function() {
-    this.timeout(10000);
+    this.timeout(10000)
     return previous
       .then(function() {
-        return cloudant.deauthorizeKeys(testDB, 'abc123');
+        return cloudant.deauthorizeKeys(testDB, 'abc123')
       })
       .then(function() {
-        return cloudant.getSecurityCloudant(testDB);
+        return cloudant.getSecurityCloudant(testDB)
       })
       .then(function(secDoc) {
-        expect(secDoc.cloudant.abc123).to.be.an('undefined');
-        expect(secDoc.cloudant.def456[1]).to.equal('_reader');
-      });
-  });
-
-});
+        expect(secDoc.cloudant.abc123).to.be.an('undefined')
+        expect(secDoc.cloudant.def456[1]).to.equal('_reader')
+      })
+  })
+})

@@ -25,10 +25,25 @@
 		"target": "esnext",
 		"watch": false,
 		"paths": {
-			"config/*": ["./config/*"],
-			"dbAuth/*": ["./dbAuth/*"],
-			"sessionAdapters/*": ["./sessionAdapters/*"]
-		}
+			"config/*": [
+				"./config/*"
+			],
+			"dbAuth/*": [
+				"./dbAuth/*"
+			],
+			"sessionAdapters/*": [
+				"./sessionAdapters/*"
+			]
+		},
+		"plugins": [
+			{
+				"name": "tslint-language-service"
+			}
+		]
 	},
-	"include": ["./types/**/*.d.ts", "./src/**/*.ts", "./index.d.ts"]
+	"include": [
+		"./types/**/*.d.ts",
+		"./src/**/*.ts",
+		"./index.d.ts"
+	]
 }
