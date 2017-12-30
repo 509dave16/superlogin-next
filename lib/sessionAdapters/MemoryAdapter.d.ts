@@ -1,2 +1,2 @@
-declare const MemoryAdapter: () => IAdapter;
+declare const MemoryAdapter: () => Superlogin.IAdapter;
 export default MemoryAdapter;

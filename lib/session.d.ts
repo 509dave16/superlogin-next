@@ -16,7 +16,7 @@ declare const Session: (config: IConfigure) => {
     }>;
     deleteTokens: (keys: string | string[]) => Promise<number>;
     fetchToken: (key: string) => Promise<any>;
-    storeToken: (token: ISession) => Promise<{
+    storeToken: (token: Superlogin.ISession) => Promise<{
         userDBs?: {
             [name: string]: string;
         } | undefined;

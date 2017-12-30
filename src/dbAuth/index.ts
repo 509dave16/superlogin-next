@@ -6,7 +6,6 @@ import CouchAdapter from './couchdb'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
-
 // Escapes any characters that are illegal in a CouchDB database name using percent codes inside parenthesis
 // Example: 'My.name@example.com' => 'my(2e)name(40)example(2e)com'
 const getLegalDBName = (input: string) =>
@@ -77,7 +76,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   const deauthorizeKeys = async (db: PouchDB.Database, keys: string[] | string) =>
     adapter.deauthorizeKeys(db, keys)
 
-  const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
+  const deauthorizeUser = async (userDoc: Superlogin.IUserDoc, keys: string[] | string) => {
     if (!userDoc) {
       console.error('deauthorizeUser error - no userdoc specified')
       return Promise.resolve(false)
@@ -135,7 +134,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   }
 
   const addUserDB = async (
-    userDoc: IUserDoc,
+    userDoc: Superlogin.IUserDoc,
     dbName: string,
     designDocs?: string[],
     type?: string,
@@ -191,7 +190,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   const removeExpiredKeys = async () => {
     try {
       // query a list of expired keys by user
-      const results = await userDB.query<IUserDoc>('auth/expiredKeys', {
+      const results = await userDB.query<Superlogin.IUserDoc>('auth/expiredKeys', {
         endkey: Date.now(),
         include_docs: true
       })

@@ -1,2 +1,2 @@
-declare const RedisAdapter: (config: IConfigure) => IAdapter;
+declare const RedisAdapter: (config: IConfigure) => Superlogin.IAdapter;
 export default RedisAdapter;

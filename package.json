@@ -15,7 +15,7 @@
   "scripts": {
     "compile": "babel -x '.ts' src -d lib",
     "copy-types":
-      "cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
+      "cat ./types/global/index.d.ts >> ./tmp/index.d.ts && cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
     "precompile": "rimraf lib && tsc",
     "postcompile": "yarn copy-types && rimraf ./tmp/",
     "lint": "yarn tsc && tslint -p tsconfig.json -c tslint.json -t stylish --fix",

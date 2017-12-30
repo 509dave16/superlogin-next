@@ -1,2 +1,2 @@
-declare const FileAdapter: (config: IConfigure) => IAdapter;
+declare const FileAdapter: (config: IConfigure) => Superlogin.IAdapter;
 export default FileAdapter;
