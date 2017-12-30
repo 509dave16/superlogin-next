@@ -3,5 +3,4 @@
 		"dbAuth": "${workspaceRoot}/src/dbAuth",
 		"sessionAdapters": "${workspaceRoot}/src/sessionAdapters"
 	},
-	"editor.formatOnSave": true
 }
