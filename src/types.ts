@@ -91,7 +91,7 @@ export declare namespace Superlogin {
     session: {
       // 'redis' or 'memory'
       adapter: 'redis' | 'memory' | 'file'
-      file: { sessionsRoot: string }
+      file?: { sessionsRoot: string }
       redis?: {
         // If url is supplied, port and host will be ignored
         url?: string
