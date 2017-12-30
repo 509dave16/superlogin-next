@@ -5,7 +5,7 @@ global.Promise = require('bluebird')
 
 const fs = Promise.promisifyAll(fsBase)
 
-const FileAdapter = (config: IConfigure): Superlogin.IAdapter => {
+const FileAdapter = (config: IConfigure): IAdapter => {
   const sessionsRoot = config.get().session.file.sessionsRoot
   const _sessionFolder = path.join(process.env.PWD as string, sessionsRoot)
   console.log('File Adapter loaded')

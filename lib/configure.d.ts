@@ -1,4 +1,4 @@
-declare const configure: (data: Superlogin.IUserConfig, defaults: {
+declare const configure: (data: IUserConfig, defaults: {
     security: {
         defaultRoles: string[];
         maxFailedLogins: number;
@@ -40,8 +40,8 @@ declare const configure: (data: Superlogin.IUserConfig, defaults: {
 }) => IConfigure;
 declare global  {
     interface IConfigure {
-        get(): Superlogin.IConfiguration;
-        set(setFunc: (oldCfg: Superlogin.IConfiguration) => Superlogin.IConfiguration): void;
+        get(): IConfiguration;
+        set(setFunc: (oldCfg: IConfiguration) => IConfiguration): void;
     }
 }
 export default configure;

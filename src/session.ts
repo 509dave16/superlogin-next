@@ -5,10 +5,9 @@ import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
-
 const tokenPrefix = 'token'
 
-const secureToken = (token: Superlogin.ISession) => {
+const secureToken = (token: ISession) => {
   const { salt, derived_key, ...finalToken } = token
   return finalToken
 }
@@ -27,7 +26,7 @@ const Session = (config: IConfigure) => {
         if (!result) {
           return Promise.reject('invalid token')
         }
-        const token: Superlogin.ISession = JSON.parse(result)
+        const token: ISession = JSON.parse(result)
         await util.verifyPassword(token, password)
         return secureToken(token)
       } catch (error) {
@@ -49,7 +48,7 @@ const Session = (config: IConfigure) => {
         return undefined
       }
     },
-    storeToken: async (token: Superlogin.ISession) => {
+    storeToken: async (token: ISession) => {
       const { password, salt, derived_key, key, expires } = token
       try {
         if (!password && salt && derived_key) {

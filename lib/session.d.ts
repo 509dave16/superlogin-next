@@ -1,35 +1,35 @@
 declare const Session: (config: IConfigure) => {
     confirmToken: (key: string, password: string) => Promise<{
+        _id: string;
+        expires: number;
+        ip?: string | undefined;
+        issued: number;
+        key: string;
+        password: string;
+        provider?: string | undefined;
+        roles: string[];
+        token?: string | undefined;
         userDBs?: {
             [name: string]: string;
         } | undefined;
         user_id?: string | undefined;
-        token?: string | undefined;
-        issued?: number | undefined;
-        expires: number;
-        provider?: string | undefined;
-        ip?: string | undefined;
-        _id: string;
-        key: string;
-        password: string;
-        roles: string[];
     }>;
     deleteTokens: (keys: string | string[]) => Promise<number>;
     fetchToken: (key: string) => Promise<any>;
-    storeToken: (token: Superlogin.ISession) => Promise<{
+    storeToken: (token: ISession) => Promise<{
+        _id: string;
+        expires: number;
+        ip?: string | undefined;
+        issued: number;
+        key: string;
+        password: string;
+        provider?: string | undefined;
+        roles: string[];
+        token?: string | undefined;
         userDBs?: {
             [name: string]: string;
         } | undefined;
         user_id?: string | undefined;
-        token?: string | undefined;
-        issued?: number | undefined;
-        expires: number;
-        provider?: string | undefined;
-        ip?: string | undefined;
-        _id: string;
-        key: string;
-        password: string;
-        roles: string[];
     } | undefined>;
     quit: () => Promise<void>;
 };

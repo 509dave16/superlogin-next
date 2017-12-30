@@ -1,6 +1,9 @@
-declare namespace Superlogin {
-  import { RequestHandlerParams } from 'express'
-  import { Transport, TransportOptions } from 'nodemailer'
+import { Data } from 'ejs'
+import { RequestHandler, Router } from 'express'
+import { Transport, TransportOptions } from 'nodemailer'
+import { PassportStatic, Strategy } from 'passport'
+
+declare global {
   export interface IAdapter {
     _getFilepath?(path: string): string
     _removeExpired?(path: string): void
@@ -14,7 +17,7 @@ declare namespace Superlogin {
     admins: { roles: string[]; names: string[]; members?: string[] }
     members: { roles: string[]; names: string[]; members?: string[] }
   }
-  type DBType = 'private' | 'shared'
+  export type DBType = 'private' | 'shared'
   export interface IConfiguration {
     // Useful settings for testing and debugging your app
     testMode?: {
@@ -134,12 +137,7 @@ declare namespace Superlogin {
       // These are settings for each personal database
       model?: {
         // If your database is not listed below, these default settings will be applied
-        _default?: {
-          // Array containing name of the design doc files (omitting .js extension), in the directory configured below
-          designDocs?: string[]
-          // these permissions only work with the Cloudant API
-          permissions?: string[]
-        }
+
         [name: string]: {
           designDocs?: string[]
           permissions?: string[]
@@ -166,12 +164,12 @@ declare namespace Superlogin {
           // It is a best practice to put any sensitive credentials in environment variables rather than your code
           clientID: string
           clientSecret: string
-        } & any
+        }
         // Any additional options you want to supply your authentication strategy such as requested permissions
         options: {
           // Anything under options will be passed in with passport.authenticate
           scope: string[]
-        } & any
+        }
         // This will pass in the user's auth token as a variable called 'state' when linking to this provider
         // Defaults to true for Google and LinkedIn, but you can enable it for other providers if needed
         stateRequired?: boolean
@@ -210,26 +208,23 @@ declare namespace Superlogin {
   }
 
   export interface ISession {
-    userDBs?: { [name: string]: string }
-    user_id?: string
-    token?: string
-    issued?: number
-    expires: number
-    provider?: string
-    ip?: string
-    salt?: string
-    derived_key?: string
     _id: string
-    provider?: string
+    derived_key?: string
+    expires: number
+    ip?: string
+    issued: number
     key: string
     password: string
-    issued: number
-    expires: number
+    provider?: string
     roles: string[]
+    salt?: string
+    token?: string
+    userDBs?: { [name: string]: string }
+    user_id?: string
   }
 
   export interface IProfile {
-    [key: string]: any
+    [key: string]: {}
     displayName: string
     username: string
     id: string
@@ -262,7 +257,6 @@ declare namespace Superlogin {
       expires: number
       token: string
       issued: number
-      expires: number
     }
     local: {
       iterations?: string
@@ -282,12 +276,12 @@ declare namespace Superlogin {
 
   export interface IBaseSLInstance {
     config: IConfigure
-    router: express.Router
+    router: Router
     mailer: IMailer
     passport: PassportStatic
     userDB: PouchDB.Database<{}>
     couchAuthDB: PouchDB.Database<{}> | undefined
-    requireAuth: express.RequestHandler
+    requireAuth: RequestHandler
     removeExpiredKeys(): Promise<undefined | string[]>
     registerProvider(
       provider: string,
@@ -423,9 +417,9 @@ declare namespace Superlogin {
     }>
     sendEmail(templateName: string, email: string, locals: Data): void
     quitRedis(): Promise<void>
-    requireRole(requiredRole: string): express.RequestHandler
-    requireAnyRole(possibleRoles: string[]): express.RequestHandler
-    requireAllRoles(requiredRoles: string[]): express.RequestHandler
+    requireRole(requiredRole: string): RequestHandler
+    requireAnyRole(possibleRoles: string[]): RequestHandler
+    requireAllRoles(requiredRoles: string[]): RequestHandler
   }
 
   export interface ISLInstance extends IBaseSLInstance {

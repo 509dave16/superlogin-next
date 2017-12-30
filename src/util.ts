@@ -52,20 +52,20 @@ const verifyPassword = async (
   return Promise.resolve(true)
 }
 
-const getDBURL = ({ user, protocol, host, password }: Superlogin.IConfiguration['dbServer']) =>
+const getDBURL = ({ user, protocol, host, password }: IConfiguration['dbServer']) =>
   user
     ? `${protocol + encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}`
     : `${protocol}${host}`
 
-const getFullDBURL = (dbServer: Superlogin.IConfiguration['dbServer'], dbName: string) =>
+const getFullDBURL = (dbServer: IConfiguration['dbServer'], dbName: string) =>
   `${getDBURL(dbServer)}/${dbName}`
 
 // tslint:disable-next-line:no-any
 const toArray = <T>(obj: T | T[]): T[] => (Array.isArray(obj) ? obj : [obj])
 
-const getSessions = ({ session }: Superlogin.IUserDoc) => (session ? Object.keys(session) : [])
+const getSessions = ({ session }: IUserDoc) => (session ? Object.keys(session) : [])
 
-const getExpiredSessions = ({ session }: Superlogin.IUserDoc, now: number) =>
+const getExpiredSessions = ({ session }: IUserDoc, now: number) =>
   session
     ? Object.keys(session).filter(k => {
         const thisSession = session[k]

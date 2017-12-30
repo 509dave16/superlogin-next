@@ -3,4 +3,5 @@
 		"dbAuth": "${workspaceRoot}/src/dbAuth",
 		"sessionAdapters": "${workspaceRoot}/src/sessionAdapters"
 	},
+	"typescript.tsdk": "node_modules/typescript/lib",
 }

@@ -10,13 +10,13 @@ const BearerStrategy = Bearer.Strategy
 
 type IDoneFunc = (
   sth: {} | null,
-  sth2?: boolean | Superlogin.IUserDoc,
+  sth2?: boolean | IUserDoc,
   sth3?: { error?: string; message: string }
 ) => void
 
 const local = (config: IConfigure, passport: PassportStatic, user: User) => {
   const { usernameField, passwordField, requireEmailConfirm } = config.get().local
-  const handleFailedLogin = async (userDoc: Superlogin.IUserDoc, req: Request, done: IDoneFunc) => {
+  const handleFailedLogin = async (userDoc: IUserDoc, req: Request, done: IDoneFunc) => {
     try {
       const locked = await user.handleFailedLogin(userDoc, req)
       const message = locked

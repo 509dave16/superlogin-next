@@ -4,7 +4,6 @@ import util from './../util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
-
 const getSecurityUrl = (db: PouchDB.Database) =>
   url.format(`${url.parse(db.name).pathname}/_security`)
 
@@ -52,7 +51,7 @@ const removeKeys = async () => Promise.resolve()
 
 const initSecurity = async (db: PouchDB.Database, adminRoles: string[], memberRoles: string[]) => {
   let changes = false
-  const secDoc = await db.get<Superlogin.ISecurityDoc>('_security')
+  const secDoc = await db.get<ISecurityDoc>('_security')
 
   if (!secDoc.admins) {
     secDoc.admins = { names: [], roles: [] }

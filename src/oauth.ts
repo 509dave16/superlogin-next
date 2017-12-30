@@ -1,9 +1,9 @@
+import util from './util'
 import ejs from 'ejs'
 import { Request, RequestHandler, Router } from 'express'
 import fs from 'fs'
 import { Passport, Strategy as StrategyType } from 'passport'
 import path from 'path'
-import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -58,7 +58,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
   // Operation is 'login' or 'link'
   const passportCallback = (
     provider: string,
-    options: { callbackURL?: string; state: boolean; session: boolean },
+    options: { scope?: string[] },
     operation: 'login' | 'link'
   ): RequestHandler => (req, res, next) => {
     const stateRequired = isStateRequired(provider)
@@ -76,7 +76,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
   // Configures the passport.authenticate for the given access_token provider, passing in options
   const passportTokenCallback = (
     provider: string,
-    options: { callbackURL?: string; state: boolean; session: boolean }
+    options: { scope?: string[] }
   ): RequestHandler => (req, res, next) =>
     passport.authenticate(`${provider}-token`, {
       ...options,
