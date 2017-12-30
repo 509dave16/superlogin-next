@@ -2,7 +2,9 @@ import { Request } from 'express'
 import { PassportStatic } from 'passport'
 import Bearer from 'passport-http-bearer-sl'
 import LocalStrategy from 'passport-local'
+import { Superlogin } from './types'
 import util from './util'
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -10,13 +12,13 @@ const BearerStrategy = Bearer.Strategy
 
 type IDoneFunc = (
   sth: {} | null,
-  sth2?: boolean | IUserDoc,
+  sth2?: boolean | Superlogin.IUserDoc,
   sth3?: { error?: string; message: string }
 ) => void
 
 const local = (config: IConfigure, passport: PassportStatic, user: User) => {
   const { usernameField, passwordField, requireEmailConfirm } = config.get().local
-  const handleFailedLogin = async (userDoc: IUserDoc, req: Request, done: IDoneFunc) => {
+  const handleFailedLogin = async (userDoc: Superlogin.IUserDoc, req: Request, done: IDoneFunc) => {
     try {
       const locked = await user.handleFailedLogin(userDoc, req)
       const message = locked

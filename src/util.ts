@@ -4,6 +4,8 @@ import { Request } from 'express'
 import merge from 'lodash.merge'
 import URLSafeBase64 from 'urlsafe-base64'
 import uuid from 'uuid'
+import { Superlogin } from './types'
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -52,20 +54,20 @@ const verifyPassword = async (
   return Promise.resolve(true)
 }
 
-const getDBURL = ({ user, protocol, host, password }: IConfiguration['dbServer']) =>
+const getDBURL = ({ user, protocol, host, password }: Superlogin.IConfiguration['dbServer']) =>
   user
     ? `${protocol + encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}`
     : `${protocol}${host}`
 
-const getFullDBURL = (dbServer: IConfiguration['dbServer'], dbName: string) =>
+const getFullDBURL = (dbServer: Superlogin.IConfiguration['dbServer'], dbName: string) =>
   `${getDBURL(dbServer)}/${dbName}`
 
 // tslint:disable-next-line:no-any
 const toArray = <T>(obj: T | T[]): T[] => (Array.isArray(obj) ? obj : [obj])
 
-const getSessions = ({ session }: IUserDoc) => (session ? Object.keys(session) : [])
+const getSessions = ({ session }: Superlogin.IUserDoc) => (session ? Object.keys(session) : [])
 
-const getExpiredSessions = ({ session }: IUserDoc, now: number) =>
+const getExpiredSessions = ({ session }: Superlogin.IUserDoc, now: number) =>
   session
     ? Object.keys(session).filter(k => {
         const thisSession = session[k]

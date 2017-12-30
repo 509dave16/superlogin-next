@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb-node'
 import seed from 'pouchdb-seed-design'
+import { Superlogin } from '../types'
 import util from './../util'
 import CloudantAdapter from './cloudant'
 import CouchAdapter from './couchdb'
@@ -76,7 +77,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   const deauthorizeKeys = async (db: PouchDB.Database, keys: string[] | string) =>
     adapter.deauthorizeKeys(db, keys)
 
-  const deauthorizeUser = async (userDoc: IUserDoc, keys: string[] | string) => {
+  const deauthorizeUser = async (userDoc: Superlogin.IUserDoc, keys: string[] | string) => {
     if (!userDoc) {
       console.error('deauthorizeUser error - no userdoc specified')
       return Promise.resolve(false)
@@ -134,7 +135,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   }
 
   const addUserDB = async (
-    userDoc: IUserDoc,
+    userDoc: Superlogin.IUserDoc,
     dbName: string,
     designDocs?: string[],
     type?: string,
@@ -190,7 +191,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
   const removeExpiredKeys = async () => {
     try {
       // query a list of expired keys by user
-      const results = await userDB.query<IUserDoc>('auth/expiredKeys', {
+      const results = await userDB.query<Superlogin.IUserDoc>('auth/expiredKeys', {
         endkey: Date.now(),
         include_docs: true
       })

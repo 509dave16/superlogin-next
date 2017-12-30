@@ -5,7 +5,7 @@ import { Data } from 'ejs';
 import { RequestHandler, Router } from 'express';
 import { Transport, TransportOptions } from 'nodemailer';
 import { PassportStatic, Strategy } from 'passport';
-declare global  {
+export declare namespace Superlogin {
     interface IAdapter {
         _getFilepath?(path: string): string;
         _removeExpired?(path: string): void;

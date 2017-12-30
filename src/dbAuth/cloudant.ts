@@ -1,5 +1,6 @@
 import request from 'superagent'
 import url from 'url'
+import { Superlogin } from '../types'
 import util from './../util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
@@ -51,7 +52,7 @@ const removeKeys = async () => Promise.resolve()
 
 const initSecurity = async (db: PouchDB.Database, adminRoles: string[], memberRoles: string[]) => {
   let changes = false
-  const secDoc = await db.get<ISecurityDoc>('_security')
+  const secDoc = await db.get<Superlogin.ISecurityDoc>('_security')
 
   if (!secDoc.admins) {
     secDoc.admins = { names: [], roles: [] }

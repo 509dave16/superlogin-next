@@ -1,0 +1,14 @@
+{
+  "name": "cool-project",
+  "main": "./tmp/index.d.ts",
+  "out": "typings.d.ts",
+  "externals": false,
+  "emitOnIncludedFileNotFound": true,
+  "emitOnNoIncludedFileNotFound": true,
+  "referenceExternals": false,
+  "removeSource": false,
+  "prefix": "__",
+  "separator": "/",
+  "verbose": true,
+  "outputAsModuleFolder": true
+}

@@ -1,12 +1,3 @@
-import defaultConfig from './config/default.config'
-import Configure from './configure'
-import localConfig from './local'
-import Mailer from './mailer'
-import Middleware from './middleware'
-import Oauth from './oauth'
-import loadRoutes from './routes'
-import User from './user'
-import util from './util'
 import { Data } from 'ejs'
 import events from 'events'
 import express, { Router } from 'express'
@@ -15,6 +6,16 @@ import PouchDB from 'pouchdb-node'
 import PouchSecurity from 'pouchdb-security-helper'
 import seed from 'pouchdb-seed-design'
 import PouchUpsert from 'pouchdb-upsert'
+import defaultConfig from './config/default.config'
+import Configure from './configure'
+import localConfig from './local'
+import Mailer from './mailer'
+import Middleware from './middleware'
+import Oauth from './oauth'
+import loadRoutes from './routes'
+import { Superlogin } from './types'
+import User from './user'
+import util from './util'
 
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
@@ -22,13 +23,24 @@ global.Promise = require('bluebird')
 // tslint:disable-next-line:no-var-requires
 const userDesign = require('../designDocs/user-design')
 
+export type DBType = Superlogin.DBType
 export type Data = Data
+export type IActivity = Superlogin.IActivity
+export type IAdapter = Superlogin.IAdapter
+export type IBaseSLInstance = Superlogin.IBaseSLInstance
+export type IConfiguration = Superlogin.IConfiguration
+export type IProfile = Superlogin.IProfile
+export type ISLInstance = Superlogin.ISLInstance
+export type ISecurityDoc = Superlogin.ISecurityDoc
+export type ISession = Superlogin.ISession
+export type IUserConfig = Superlogin.IUserConfig
+export type IUserDoc = Superlogin.IUserDoc
 export type Strategy = Strategy
 
 PouchDB.plugin(PouchSecurity).plugin(PouchUpsert)
 
 const init = async (
-  configData: IUserConfig,
+  configData: Superlogin.IUserConfig,
   passport?: PassportStatic,
   userDB?: PouchDB.Database,
   couchAuthDB?: PouchDB.Database
@@ -79,7 +91,7 @@ const init = async (
   // Load the routes
   loadRoutes(config, router, finalPassport, user)
 
-  const superlogin: IBaseSLInstance = {
+  const superlogin: Superlogin.IBaseSLInstance = {
     config,
     router,
     mailer,
@@ -125,7 +137,7 @@ const init = async (
   for (const key in emitter) {
     superlogin[key] = emitter[key]
   }
-  return superlogin as ISLInstance
+  return superlogin as Superlogin.ISLInstance
 }
 
 export default init

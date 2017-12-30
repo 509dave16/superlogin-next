@@ -1,9 +1,9 @@
-import util from './util'
 import ejs from 'ejs'
 import { Request, RequestHandler, Router } from 'express'
 import fs from 'fs'
 import { Passport, Strategy as StrategyType } from 'passport'
 import path from 'path'
+import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 

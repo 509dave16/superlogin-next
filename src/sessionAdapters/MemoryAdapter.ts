@@ -1,7 +1,8 @@
+import { Superlogin } from '../types'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
-const MemoryAdapter = (): IAdapter => {
+const MemoryAdapter = (): Superlogin.IAdapter => {
   const _keys = {}
   const _expires = {}
   console.log('Memory Adapter loaded')

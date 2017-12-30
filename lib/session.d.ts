@@ -1,3 +1,4 @@
+import { Superlogin } from './types';
 declare const Session: (config: IConfigure) => {
     confirmToken: (key: string, password: string) => Promise<{
         _id: string;
@@ -16,7 +17,7 @@ declare const Session: (config: IConfigure) => {
     }>;
     deleteTokens: (keys: string | string[]) => Promise<number>;
     fetchToken: (key: string) => Promise<any>;
-    storeToken: (token: ISession) => Promise<{
+    storeToken: (token: Superlogin.ISession) => Promise<{
         _id: string;
         expires: number;
         ip?: string | undefined;

@@ -1,5 +1,6 @@
 /// <reference types="express" />
 import { Request } from 'express';
+import { Superlogin } from './types';
 declare const _default: {
     URLSafeUUID: () => string;
     hashToken: (token: string) => string;
@@ -34,8 +35,8 @@ declare const _default: {
         userDB: string;
         couchAuthDB: string;
     }, dbName: string) => string;
-    getSessions: ({session}: IUserDoc) => string[];
-    getExpiredSessions: ({session}: IUserDoc, now: number) => string[];
+    getSessions: ({session}: Superlogin.IUserDoc) => string[];
+    getExpiredSessions: ({session}: Superlogin.IUserDoc, now: number) => string[];
     getSessionToken: (req: Request) => string | undefined;
     addProvidersToDesignDoc: (config: IConfigure, ddoc: {
         auth: {

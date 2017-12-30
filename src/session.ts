@@ -1,13 +1,14 @@
 import FileAdapter from './sessionAdapters/FileAdapter'
 import MemoryAdapter from './sessionAdapters/MemoryAdapter'
 import RedisAdapter from './sessionAdapters/RedisAdapter'
+import { Superlogin } from './types'
 import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
 const tokenPrefix = 'token'
 
-const secureToken = (token: ISession) => {
+const secureToken = (token: Superlogin.ISession) => {
   const { salt, derived_key, ...finalToken } = token
   return finalToken
 }
@@ -26,7 +27,7 @@ const Session = (config: IConfigure) => {
         if (!result) {
           return Promise.reject('invalid token')
         }
-        const token: ISession = JSON.parse(result)
+        const token: Superlogin.ISession = JSON.parse(result)
         await util.verifyPassword(token, password)
         return secureToken(token)
       } catch (error) {
@@ -48,7 +49,7 @@ const Session = (config: IConfigure) => {
         return undefined
       }
     },
-    storeToken: async (token: ISession) => {
+    storeToken: async (token: Superlogin.ISession) => {
       const { password, salt, derived_key, key, expires } = token
       try {
         if (!password && salt && derived_key) {

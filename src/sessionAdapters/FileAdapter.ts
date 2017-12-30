@@ -1,11 +1,13 @@
 import fsBase from 'fs-extra'
 import path from 'path'
+import { Superlogin } from '../types'
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
 const fs = Promise.promisifyAll(fsBase)
 
-const FileAdapter = (config: IConfigure): IAdapter => {
+const FileAdapter = (config: IConfigure): Superlogin.IAdapter => {
   const sessionsRoot = config.get().session.file.sessionsRoot
   const _sessionFolder = path.join(process.env.PWD as string, sessionsRoot)
   console.log('File Adapter loaded')

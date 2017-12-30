@@ -1,7 +1,8 @@
 import merge from 'lodash.merge'
+import { Superlogin } from './types'
 
-const configure = (data: IUserConfig, defaults: IDefaultConfig): IConfigure => {
-  let finalConfig = merge({}, defaults, data) as IConfiguration
+const configure = (data: Superlogin.IUserConfig, defaults: IDefaultConfig): IConfigure => {
+  let finalConfig = merge({}, defaults, data) as Superlogin.IConfiguration
 
   return {
     get: () => finalConfig,
@@ -11,8 +12,8 @@ const configure = (data: IUserConfig, defaults: IDefaultConfig): IConfigure => {
 
 declare global {
   interface IConfigure {
-    get(): IConfiguration
-    set(setFunc: (oldCfg: IConfiguration) => IConfiguration): void
+    get(): Superlogin.IConfiguration
+    set(setFunc: (oldCfg: Superlogin.IConfiguration) => Superlogin.IConfiguration): void
   }
 }
 

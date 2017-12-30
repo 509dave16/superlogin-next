@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { Passport } from 'passport'
+import { Superlogin } from './types'
 import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
@@ -88,7 +89,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
 
   // Setting up the auth api
   router.post('/register', (req, res, next) => {
-    user.create(req.body, req).then((newUser: IUserDoc) => {
+    user.create(req.body, req).then((newUser: Superlogin.IUserDoc) => {
       if (config.get().security.loginOnRegistration) {
         return user
           .createSession(newUser._id, 'local', req.ip)
@@ -105,7 +106,7 @@ const routes = (config: IConfigure, router: Router, passport: Passport, user: Us
   )
 
   router.post('/password-reset', (req, res, next) => {
-    user.resetPassword(req.body, req).then((currentUser: IUserDoc) => {
+    user.resetPassword(req.body, req).then((currentUser: Superlogin.IUserDoc) => {
       if (config.get().security.loginOnPasswordReset) {
         return user
           .createSession(currentUser._id, 'local', req.ip)

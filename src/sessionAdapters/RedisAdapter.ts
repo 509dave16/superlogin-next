@@ -1,4 +1,5 @@
 import redisBase, { RedisClient } from 'redis'
+import { Superlogin } from '../types'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -13,7 +14,7 @@ interface IPromRedis extends RedisClient {
   quit(): any
 }
 
-const RedisAdapter = (config: IConfigure): IAdapter => {
+const RedisAdapter = (config: IConfigure): Superlogin.IAdapter => {
   const { redis: redisConfig } = config.get().session
   const finalRedisConfig = redisConfig || { host: '127.0.0.1', port: 6379 }
 

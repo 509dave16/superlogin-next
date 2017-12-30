@@ -3,8 +3,8 @@ import { RequestHandler, Router } from 'express'
 import { Transport, TransportOptions } from 'nodemailer'
 import { PassportStatic, Strategy } from 'passport'
 
-declare global {
-  export interface IAdapter {
+export declare namespace Superlogin {
+  interface IAdapter {
     _getFilepath?(path: string): string
     _removeExpired?(path: string): void
     deleteKeys(keys: string[]): Promise<number>
@@ -13,12 +13,12 @@ declare global {
     storeKey(key: string, life: number, data: {}): Promise<void>
   }
 
-  export interface ISecurityDoc {
+  interface ISecurityDoc {
     admins: { roles: string[]; names: string[]; members?: string[] }
     members: { roles: string[]; names: string[]; members?: string[] }
   }
-  export type DBType = 'private' | 'shared'
-  export interface IConfiguration {
+  type DBType = 'private' | 'shared'
+  interface IConfiguration {
     // Useful settings for testing and debugging your app
     testMode?: {
       oauthTest?: boolean
@@ -194,7 +194,7 @@ declare global {
     }
   }
 
-  export interface IUserConfig {
+  interface IUserConfig {
     testMode?: IConfiguration['testMode']
     security?: Partial<IConfiguration['security']>
     local?: Partial<IConfiguration['local']>
@@ -207,7 +207,7 @@ declare global {
     userModel?: IConfiguration['userModel']
   }
 
-  export interface ISession {
+  interface ISession {
     _id: string
     derived_key?: string
     expires: number
@@ -223,7 +223,7 @@ declare global {
     user_id?: string
   }
 
-  export interface IProfile {
+  interface IProfile {
     [key: string]: {}
     displayName: string
     username: string
@@ -232,14 +232,14 @@ declare global {
     emails: { value: string }[]
   }
 
-  export interface IActivity {
+  interface IActivity {
     timestamp: string
     action: string
     provider: string
     ip: string
   }
 
-  export interface IUserDoc extends ISession {
+  interface IUserDoc extends ISession {
     activity?: IActivity[] | IActivity
     _rev: string
     rev?: string
@@ -274,7 +274,7 @@ declare global {
     personalDBs: { [dbName: string]: { name: string; type?: string } }
   }
 
-  export interface IBaseSLInstance {
+  interface IBaseSLInstance {
     config: IConfigure
     router: Router
     mailer: IMailer
@@ -422,7 +422,7 @@ declare global {
     requireAllRoles(requiredRoles: string[]): RequestHandler
   }
 
-  export interface ISLInstance extends IBaseSLInstance {
+  interface ISLInstance extends IBaseSLInstance {
     on(event: string, cb: {}): void
   }
 }

@@ -15,7 +15,7 @@
   "scripts": {
     "compile": "babel -x '.ts' src -d lib",
     "copy-types":
-      " cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
+      "cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
     "precompile": "rimraf lib && tsc",
     "postcompile": "yarn copy-types && rimraf ./tmp/",
     "lint": "yarn tsc && tslint -p tsconfig.json -c tslint.json -t stylish --fix",
@@ -85,6 +85,7 @@
     "babel-plugin-module-resolver": "^3.0.0",
     "body-parser": "^1.9.2",
     "chai": "^4.1.2",
+    "dts-bundle": "^0.7.3",
     "fast-async": "^6.3.0",
     "gulp": "^3.8.6",
     "gulp-jshint": "^2.1.0",
