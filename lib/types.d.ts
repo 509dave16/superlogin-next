@@ -224,6 +224,7 @@ export declare namespace Superlogin {
             timestamp: string;
             ip: string;
         };
+        google?: {};
         session: {
             [name: string]: {
                 expires?: number;
