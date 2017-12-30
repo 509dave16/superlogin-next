@@ -4,16 +4,17 @@
 		"allowSyntheticDefaultImports": true,
 		"alwaysStrict": true,
 		"baseUrl": "./src/",
+		"declaration": true,
 		"emitDecoratorMetadata": false,
 		"experimentalDecorators": true,
 		"importHelpers": true,
 		"module": "esnext",
 		"moduleResolution": "node",
-		"noEmit": true,
 		"noImplicitAny": true,
 		"noImplicitThis": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": false,
+		"outDir": "./tmp",
 		"pretty": true,
 		"removeComments": true,
 		"rootDir": "./src/",
@@ -44,6 +45,5 @@
 	"include": [
 		"./types/**/*.d.ts",
 		"./src/**/*.ts",
-		"./index.d.ts"
 	]
 }

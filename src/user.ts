@@ -1,14 +1,13 @@
-import { EventEmitter } from 'events'
-import merge from 'lodash.merge'
-import Model from 'sofa-model'
-import url from 'url'
 import DBAuth from './dbAuth'
 import cloudant from './dbAuth/cloudant'
 import Session from './session'
 import util from './util'
+import { EventEmitter } from 'events'
+import merge from 'lodash.merge'
+import Model from 'sofa-model'
+import url from 'url'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
-
 
 // regexp from https://github.com/angular/angular.js/blob/master/src/ng/directive/inupsert.js#L4
 const EMAIL_REGEXP = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}$/
@@ -70,7 +69,7 @@ const user = (
 
       if (saveDoc) {
         await userDB.upsert<IUserDoc>(thisUser._id, oldUser => {
-          const { activity: _, ...oldData } = oldUser
+          const { activity: _, ...oldData } = oldUser as PouchDB.Core.Document<IUserDoc>
           return merge({}, oldData, finalUser)
         })
       }
@@ -176,8 +175,8 @@ const user = (
       }
 
       if (finalUser) {
-        return await userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
-          delete oldUser.session
+        return await userDB.upsert<IUserDoc>(finalUser._id, rawUser => {
+          const { session: _, ...oldUser } = rawUser as PouchDB.Core.Document<IUserDoc>
           return merge({}, oldUser, finalUser)
         })
       }
@@ -776,7 +775,7 @@ const user = (
         })
       }
       await userDB.upsert<IUserDoc>(unLinkUser._id, oldUser => {
-        const { [provider]: deleted, ...newUser } = oldUser
+        const { [provider]: deleted, ...newUser } = oldUser as PouchDB.Core.Document<IUserDoc>
         if (newUser.providers) {
           // Remove the unlinked provider from the list of providers
           newUser.providers.splice(unLinkUser.providers.indexOf(provider), 1)
@@ -853,7 +852,8 @@ const user = (
       )
       const finalUser = await logoutUserSessions(userDoc, 'expired')
       createSessionUser = finalUser
-      await userDB.upsert<IUserDoc>(finalUser._id, oldDoc => {
+      await userDB.upsert<IUserDoc>(finalUser._id, rawDoc => {
+        const oldDoc = rawDoc as PouchDB.Core.Document<IUserDoc>
         if (oldDoc.local) {
           delete oldDoc.local.lockedUntil
         }
@@ -1002,7 +1002,8 @@ const user = (
         return logActivity(resetUser._id, 'reset password', 'local', req, resetUser)
       })
       .then(async (finalUser: IUserDoc) =>
-        userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
+        userDB.upsert<IUserDoc>(finalUser._id, rawUser => {
+          const oldUser = rawUser as PouchDB.Core.Document<IUserDoc>
           delete oldUser.forgotPassword
           return merge({}, oldUser, finalUser)
         })
@@ -1133,7 +1134,8 @@ const user = (
       req,
       verifyEmailUser
     )
-    return userDB.upsert<IUserDoc>(finalUser._id, oldUser => {
+    return userDB.upsert<IUserDoc>(finalUser._id, rawUser => {
+      const oldUser = rawUser as PouchDB.Core.Document<IUserDoc>
       delete oldUser.unverifiedEmail
       return merge({}, oldUser, finalUser)
     })
@@ -1270,7 +1272,8 @@ const user = (
 
       if (update) {
         emitter.emit('user-db-removed', user_id, dbName)
-        return userDB.upsert<IUserDoc>(removeUser._id, oldUser => {
+        return userDB.upsert<IUserDoc>(removeUser._id, rawUser => {
+          const oldUser = rawUser as PouchDB.Core.Document<IUserDoc>
           if (oldUser.personalDBs[dbID]) {
             delete oldUser.personalDBs[dbID]
           }
@@ -1313,7 +1316,8 @@ const user = (
     await logoutUserSessions(logoutUserDoc, 'all')
     emitter.emit('logout', user_id)
     emitter.emit('logout-all', user_id)
-    return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
+    return userDB.upsert<IUserDoc>(logoutUserDoc._id, rawUser => {
+      const oldUser = rawUser as PouchDB.Core.Document<IUserDoc>
       delete oldUser.session
       return merge({}, oldUser, logoutUserDoc)
     })
@@ -1357,7 +1361,8 @@ const user = (
       }
       emitter.emit('logout', logoutUserDoc._id)
       if (startSessions !== endSessions) {
-        return userDB.upsert<IUserDoc>(logoutUserDoc._id, oldUser => {
+        return userDB.upsert<IUserDoc>(logoutUserDoc._id, rawUser => {
+          const oldUser = rawUser as PouchDB.Core.Document<IUserDoc>
           delete oldUser.session
           return merge({}, oldUser, logoutUserDoc)
         })
