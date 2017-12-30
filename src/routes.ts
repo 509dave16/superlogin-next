@@ -1,6 +1,6 @@
-import util from './util'
 import { Router } from 'express'
 import { Passport } from 'passport'
+import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 

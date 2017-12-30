@@ -1,11 +1,11 @@
-import DBAuth from './dbAuth'
-import cloudant from './dbAuth/cloudant'
-import Session from './session'
-import util from './util'
 import { EventEmitter } from 'events'
 import merge from 'lodash.merge'
 import Model from 'sofa-model'
 import url from 'url'
+import DBAuth from './dbAuth'
+import cloudant from './dbAuth/cloudant'
+import Session from './session'
+import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -449,7 +449,7 @@ const user = (
     }
   }
 
-  const onCreate = (fn: () => Promise<IUserDoc>) => {
+  const onCreate = (fn: (userDoc: IUserDoc, provider: string) => Promise<IUserDoc>) => {
     if (typeof fn === 'function') {
       onCreateActions.push(fn)
     } else {
@@ -457,7 +457,7 @@ const user = (
     }
   }
 
-  const onLink = (fn: () => Promise<IUserDoc>) => {
+  const onLink = (fn: (userDoc: IUserDoc, provider: string) => Promise<IUserDoc>) => {
     if (typeof fn === 'function') {
       onLinkActions.push(fn)
     } else {

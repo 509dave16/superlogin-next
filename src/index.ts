@@ -1,3 +1,11 @@
+import { Data } from 'ejs'
+import events from 'events'
+import express, { Router } from 'express'
+import defaultPassport, { PassportStatic, Strategy } from 'passport'
+import PouchDB from 'pouchdb-node'
+import PouchSecurity from 'pouchdb-security-helper'
+import seed from 'pouchdb-seed-design'
+import PouchUpsert from 'pouchdb-upsert'
 import defaultConfig from './config/default.config'
 import Configure from './configure'
 import localConfig from './local'
@@ -7,14 +15,6 @@ import Oauth from './oauth'
 import loadRoutes from './routes'
 import User from './user'
 import util from './util'
-import { Data } from 'ejs'
-import events from 'events'
-import express, { Router } from 'express'
-import defaultPassport, { PassportStatic, Strategy } from 'passport'
-import PouchDB from 'pouchdb-node'
-import PouchSecurity from 'pouchdb-security-helper'
-import seed from 'pouchdb-seed-design'
-import PouchUpsert from 'pouchdb-upsert'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -36,7 +36,7 @@ const init = async (
   const router: Router = express.Router()
   const emitter = new events.EventEmitter()
 
-  const finalPassport: PassportStatic = passport ? passport : defaultPassport
+  const finalPassport: PassportStatic = passport || defaultPassport
 
   const middleware = Middleware(finalPassport)
 
@@ -124,7 +124,7 @@ const init = async (
   for (const key in emitter) {
     superlogin[key] = emitter[key]
   }
-  return superlogin
+  return superlogin as ISLInstance
 }
 
 export default init

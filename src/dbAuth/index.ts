@@ -1,8 +1,8 @@
+import PouchDB from 'pouchdb-node'
+import seed from 'pouchdb-seed-design'
 import util from './../util'
 import CloudantAdapter from './cloudant'
 import CouchAdapter from './couchdb'
-import PouchDB from 'pouchdb-node'
-import seed from 'pouchdb-seed-design'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 

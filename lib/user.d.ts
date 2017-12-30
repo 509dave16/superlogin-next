@@ -137,8 +137,8 @@ declare const user: (config: IConfigure, userDB: PouchDB.Database<{}>, couchAuth
             };
         };
     };
-    onCreate: (fn: () => Promise<IUserDoc>) => void;
-    onLink: (fn: () => Promise<IUserDoc>) => void;
+    onCreate: (fn: (userDoc: IUserDoc, provider: string) => Promise<IUserDoc>) => void;
+    onLink: (fn: (userDoc: IUserDoc, provider: string) => Promise<IUserDoc>) => void;
     processTransformations: (fnArray: ((userDoc: IUserDoc, provider: string) => Promise<IUserDoc>)[], userDoc: IUserDoc, provider: string) => Promise<IUserDoc>;
     get: (login: string) => Promise<PouchDB.Core.ExistingDocument<PouchDB.Core.AllDocsMeta> | null | undefined>;
     create: (form: {}, req: {

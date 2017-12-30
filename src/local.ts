@@ -1,8 +1,8 @@
-import util from './util'
 import { Request } from 'express'
 import { PassportStatic } from 'passport'
 import Bearer from 'passport-http-bearer-sl'
 import LocalStrategy from 'passport-local'
+import util from './util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
