@@ -279,7 +279,7 @@ export declare namespace Superlogin {
     router: Router
     mailer: IMailer
     passport: PassportStatic
-    userDB: PouchDB.Database<{}>
+    userDB: PouchDB.Database<IUserDoc>
     couchAuthDB: PouchDB.Database<{}> | undefined
     requireAuth: RequestHandler
     removeExpiredKeys(): Promise<undefined | string[]>
