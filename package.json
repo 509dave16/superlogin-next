@@ -1,8 +1,10 @@
 {
   "name": "superlogin",
   "version": "0.6.1",
-  "description": "Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
-  "main": "./lib/index.js",
+  "description":
+    "Powerful authentication for APIs and single page apps using the CouchDB ecosystem which supports a variety of providers.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "repository": {
     "type": "git",
     "url": "https://github.com/colinskow/superlogin.git"
@@ -12,7 +14,8 @@
   },
   "scripts": {
     "compile": "babel -x '.ts' src -d lib",
-    "copy-types": "cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
+    "copy-types":
+      "cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
     "precompile": "rimraf lib && tsc",
     "postcompile": "yarn copy-types && rimraf ./tmp/",
     "lint": "yarn tsc && tslint -p tsconfig.json -c tslint.json -t stylish --fix",
