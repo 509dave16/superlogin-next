@@ -15,8 +15,8 @@ export interface IBaseSLInstance {
     passport: PassportStatic;
     userDB: PouchDB.Database<{}>;
     couchAuthDB: PouchDB.Database<{}> | undefined;
-    removeExpiredKeys: {};
     requireAuth: express.RequestHandler;
+    removeExpiredKeys(): Promise<undefined | string[]>;
     registerProvider(provider: string, configFunction: (credentials: {}, passport: {}, authHandler: {}) => void): void;
     registerOAuth2(providerName: string, Strategy: Strategy): void;
     registerTokenProvider(providerName: string, Strategy: Strategy): void;

@@ -1,11 +1,11 @@
-import { EventEmitter } from 'events'
-import merge from 'lodash.merge'
-import Model from 'sofa-model'
-import url from 'url'
 import DBAuth from './dbAuth'
 import cloudant from './dbAuth/cloudant'
 import Session from './session'
 import util from './util'
+import { EventEmitter } from 'events'
+import merge from 'lodash.merge'
+import Model from 'sofa-model'
+import url from 'url'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -1398,8 +1398,6 @@ const user = (
     }
   }
 
-  const removeExpiredKeys = dbAuth.removeExpiredKeys.bind(dbAuth)
-
   const confirmSession = async (key: string, password: string) =>
     session.confirmToken(key, password)
 
@@ -1492,7 +1490,7 @@ const user = (
 
     remove,
 
-    removeExpiredKeys,
+    removeExpiredKeys: dbAuth.removeExpiredKeys,
 
     confirmSession,
 

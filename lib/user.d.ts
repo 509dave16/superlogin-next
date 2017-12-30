@@ -199,7 +199,7 @@ declare const user: (config: IConfigure, userDB: PouchDB.Database<{}>, couchAuth
     logoutOthers: (session_id: string) => Promise<boolean | PouchDB.UpsertResponse>;
     logoutUserSessions: (userDoc: IUserDoc, op: string, currentSession?: string | undefined) => Promise<IUserDoc>;
     remove: (user_id: string, destroyDBs: boolean) => Promise<void | PouchDB.Core.Response>;
-    removeExpiredKeys: any;
+    removeExpiredKeys: () => Promise<any[] | undefined>;
     confirmSession: (key: string, password: string) => Promise<{
         userDBs?: {
             [name: string]: string;

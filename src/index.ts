@@ -1,11 +1,3 @@
-import { Data } from 'ejs'
-import events from 'events'
-import express, { Router } from 'express'
-import defaultPassport, { PassportStatic, Strategy } from 'passport'
-import PouchDB from 'pouchdb-node'
-import PouchSecurity from 'pouchdb-security-helper'
-import seed from 'pouchdb-seed-design'
-import PouchUpsert from 'pouchdb-upsert'
 import defaultConfig from './config/default.config'
 import Configure from './configure'
 import localConfig from './local'
@@ -15,6 +7,14 @@ import Oauth from './oauth'
 import loadRoutes from './routes'
 import User from './user'
 import util from './util'
+import { Data } from 'ejs'
+import events from 'events'
+import express, { Router } from 'express'
+import defaultPassport, { PassportStatic, Strategy } from 'passport'
+import PouchDB from 'pouchdb-node'
+import PouchSecurity from 'pouchdb-security-helper'
+import seed from 'pouchdb-seed-design'
+import PouchUpsert from 'pouchdb-upsert'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -136,8 +136,8 @@ export interface IBaseSLInstance {
   passport: PassportStatic
   userDB: PouchDB.Database<{}>
   couchAuthDB: PouchDB.Database<{}> | undefined
-  removeExpiredKeys: {}
   requireAuth: express.RequestHandler
+  removeExpiredKeys(): Promise<undefined | string[]>
   registerProvider(
     provider: string,
     configFunction: (credentials: {}, passport: {}, authHandler: {}) => void
