@@ -292,9 +292,7 @@ export declare namespace Superlogin {
     validateUsername(username: string): Promise<string | void>
     validateEmail(email: string): Promise<string | void>
     validateEmailUsername(email: string): Promise<string | void>
-    getUser(
-      login: string
-    ): Promise<PouchDB.Core.ExistingDocument<PouchDB.Core.AllDocsMeta> | null | undefined>
+    getUser(login: string): Promise<PouchDB.Core.ExistingDocument<IUserDoc> | null | undefined>
     createUser(
       form: {},
       req: {
@@ -382,8 +380,8 @@ export declare namespace Superlogin {
       user_id: string,
       dbName: string,
       type: string,
-      designDocs: string[],
-      permissions: string[]
+      designDocs?: string[],
+      permissions?: string[]
     ): Promise<(IUserDoc & PouchDB.Core.IdMeta & PouchDB.Core.GetMeta) | undefined>
     removeUserDB(
       user_id: string,

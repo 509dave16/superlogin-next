@@ -17,7 +17,7 @@ const USER_REGEXP = /^[a-z0-9_-]{3,16}$/
 
 const user = (
   config: IConfigure,
-  userDB: PouchDB.Database,
+  userDB: PouchDB.Database<Superlogin.IUserDoc>,
   couchAuthDB: PouchDB.Database,
   mailer: IMailer,
   emitter: EventEmitter
@@ -498,7 +498,10 @@ const user = (
     } else {
       query = EMAIL_REGEXP.test(login) ? 'email' : 'username'
     }
-    const results = await userDB.query(`auth/${query}`, { key: login, include_docs: true })
+    const results = await userDB.query<Superlogin.IUserDoc>(`auth/${query}`, {
+      key: login,
+      include_docs: true
+    })
     if (results.rows.length > 0) {
       return results.rows[0].doc
     }
