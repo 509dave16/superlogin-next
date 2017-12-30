@@ -16,8 +16,8 @@
     "compile": "babel -x '.ts' src -d lib",
     "copy-types":
       "cd ./tmp && find . -name '*.d.ts' -type f -exec cp --parents {} ../lib/ \\; &&cd ../",
-    "precompile": "rimraf lib && tsc",
-    "postcompile": "yarn copy-types && rimraf ./tmp/",
+    "precompile": "rimraf lib tmp && tsc",
+    "postcompile": "yarn copy-types && rimraf tmp",
     "lint": "yarn tsc && tslint -p tsconfig.json -c tslint.json -t stylish --fix",
     "prettier": "prettier --write 'src/**/*.js'",
     "test": "gulp"

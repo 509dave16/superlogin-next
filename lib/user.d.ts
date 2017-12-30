@@ -4,7 +4,7 @@
 /// <reference types="pouchdb-upsert" />
 import { EventEmitter } from 'events';
 import { Superlogin } from './types';
-declare const user: (config: IConfigure, userDB: PouchDB.Database<{}>, couchAuthDB: PouchDB.Database<{}>, mailer: IMailer, emitter: EventEmitter) => {
+declare const user: (config: IConfigure, userDB: PouchDB.Database<Superlogin.IUserDoc>, couchAuthDB: PouchDB.Database<{}>, mailer: IMailer, emitter: EventEmitter) => {
     dbAuth: {
         removeDB: (dbName: string) => Promise<void>;
         createDB: (dbName: string) => Promise<PouchDB.Core.DatabaseInfo>;
@@ -141,7 +141,7 @@ declare const user: (config: IConfigure, userDB: PouchDB.Database<{}>, couchAuth
     onCreate: (fn: (userDoc: Superlogin.IUserDoc, provider: string) => Promise<Superlogin.IUserDoc>) => void;
     onLink: (fn: (userDoc: Superlogin.IUserDoc, provider: string) => Promise<Superlogin.IUserDoc>) => void;
     processTransformations: (fnArray: ((userDoc: Superlogin.IUserDoc, provider: string) => Promise<Superlogin.IUserDoc>)[], userDoc: Superlogin.IUserDoc, provider: string) => Promise<Superlogin.IUserDoc>;
-    get: (login: string) => Promise<PouchDB.Core.ExistingDocument<PouchDB.Core.AllDocsMeta> | null | undefined>;
+    get: (login: string) => Promise<PouchDB.Core.ExistingDocument<Superlogin.IUserDoc & PouchDB.Core.AllDocsMeta> | null | undefined>;
     create: (form: {}, req: {
         ip: string;
     }) => Promise<Superlogin.IUserDoc>;

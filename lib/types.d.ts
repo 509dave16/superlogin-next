@@ -73,7 +73,7 @@ export declare namespace Superlogin {
         };
         session: {
             adapter: 'redis' | 'memory' | 'file';
-            file: {
+            file?: {
                 sessionsRoot: string;
             };
             redis?: {
@@ -241,7 +241,7 @@ export declare namespace Superlogin {
         router: Router;
         mailer: IMailer;
         passport: PassportStatic;
-        userDB: PouchDB.Database<{}>;
+        userDB: PouchDB.Database<IUserDoc>;
         couchAuthDB: PouchDB.Database<{}> | undefined;
         requireAuth: RequestHandler;
         removeExpiredKeys(): Promise<undefined | string[]>;
@@ -251,7 +251,7 @@ export declare namespace Superlogin {
         validateUsername(username: string): Promise<string | void>;
         validateEmail(email: string): Promise<string | void>;
         validateEmailUsername(email: string): Promise<string | void>;
-        getUser(login: string): Promise<PouchDB.Core.ExistingDocument<PouchDB.Core.AllDocsMeta> | null | undefined>;
+        getUser(login: string): Promise<PouchDB.Core.ExistingDocument<IUserDoc> | null | undefined>;
         createUser(form: {}, req: {
             ip: string;
         }): Promise<IUserDoc>;
@@ -297,7 +297,7 @@ export declare namespace Superlogin {
         verifyEmail(token: string, req: {
             ip: string;
         }): Promise<PouchDB.UpsertResponse>;
-        addUserDB(user_id: string, dbName: string, type: string, designDocs: string[], permissions: string[]): Promise<(IUserDoc & PouchDB.Core.IdMeta & PouchDB.Core.GetMeta) | undefined>;
+        addUserDB(user_id: string, dbName: string, type: string, designDocs?: string[], permissions?: string[]): Promise<(IUserDoc & PouchDB.Core.IdMeta & PouchDB.Core.GetMeta) | undefined>;
         removeUserDB(user_id: string, dbName: string, deletePrivate: boolean, deleteShared: boolean): Promise<void | PouchDB.UpsertResponse>;
         logoutUser(user_id: string, session_id: string): Promise<PouchDB.UpsertResponse>;
         logoutSession(session_id: string): Promise<boolean | PouchDB.UpsertResponse>;
