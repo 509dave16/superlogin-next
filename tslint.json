@@ -1,81 +1,84 @@
 {
-	"extends": [
-		"tslint:recommended",
-		"tslint-microsoft-contrib",
-		"tslint-eslint-rules",
-		"tslint-config-prettier"
-	],
-	"rules": {
-		"no-parameter-properties": false,
-		"no-invalid-this": false,
-		"prefer-type-cast": false,
-		"function-name": false,
-		"no-cookies": false,
-		"completed-docs": false,
-		"match-default-export-name": false,
-		"restrict-plus-operands": false,
-		"no-unsafe-any": false,
-		"no-void-expression": false,
-		"strict-boolean-expressions": false,
-		"no-reserved-keywords": false,
-		"cyclomatic-complexity": false,
-		"no-multiline-string": false,
-		"no-backbone-get-set-outside-model": false,
-		"no-typeof-undefined": false,
-		"no-require-imports": false,
-		"import-name": false,
-		"no-relative-imports": false,
-		"newline-before-return": false,
-		"max-func-body-length": 500,
-		"no-default-export": false,
-		"export-name": false,
-		"missing-jsdoc": false,
+  "extends": [
+    "tslint:recommended",
+    "tslint-microsoft-contrib",
+    "tslint-eslint-rules",
+    "tslint-config-prettier"
+  ],
+  "rules": {
+    "type-literal-delimiter": false,
+    "no-suspicious-comment": false,
+    "no-parameter-reassignment": false,
+    "no-parameter-properties": false,
+    "no-invalid-this": false,
+    "prefer-type-cast": false,
+    "function-name": false,
+    "no-cookies": false,
+    "completed-docs": false,
+    "match-default-export-name": false,
+    "restrict-plus-operands": false,
+    "no-unsafe-any": false,
+    "no-void-expression": false,
+    "strict-boolean-expressions": false,
+    "no-reserved-keywords": false,
+    "cyclomatic-complexity": false,
+    "no-multiline-string": false,
+    "no-backbone-get-set-outside-model": false,
+    "no-typeof-undefined": false,
+    "no-require-imports": false,
+    "import-name": false,
+    "no-relative-imports": false,
+    "newline-before-return": false,
+    "max-func-body-length": 500,
+    "no-default-export": false,
+    "export-name": false,
+    "missing-jsdoc": false,
 
-		"no-console": false,
-		"class-method-newlines": true,
-		"prefer-or-operator-over-ternary": true,
-		"no-implicit-dependencies": false,
-		"member-access": false,
-		"object-literal-sort-keys": false,
-		"variable-name": [
-			true,
-			"allow-snake-case",
-			"ban-keywords",
-			"check-format",
-			"allow-leading-underscore",
-			"allow-pascal-case"
-		],
-		"no-any": true,
-		"prefer-object-spread": false,
-		"no-submodule-imports": false,
-		"no-object-literal-type-assertion": true,
+    "no-console": false,
+    "class-method-newlines": true,
+    "prefer-or-operator-over-ternary": true,
+    "no-implicit-dependencies": false,
+    "member-access": false,
+    "object-literal-sort-keys": false,
+    "variable-name": [
+      true,
+      "allow-snake-case",
+      "ban-keywords",
+      "check-format",
+      "allow-leading-underscore",
+      "allow-pascal-case"
+    ],
+    "no-any": true,
+    "prefer-object-spread": false,
+    "no-submodule-imports": false,
+    "no-object-literal-type-assertion": true,
 
-		"no-var-keyword": true,
-		"typedef": [
-			false,
-			"call-signature",
-			"parameter",
-			"property-declaration",
-			"member-variable-declaration"
-		],
-		"triple-equals": [true, "allow-null-check"],
-		"typedef-whitespace": [
-			true,
-			{
-				"call-signature": "nospace",
-				"index-signature": "nospace",
-				"parameter": "nospace",
-				"property-declaration": "nospace",
-				"variable-declaration": "nospace"
-			}
-		],
-		"no-inferrable-types": [true, "ignore-params", "ignore-properties"],
+    "no-var-keyword": true,
+    "typedef": [
+      false,
+      "call-signature",
+      "parameter",
+      "property-declaration",
+      "member-variable-declaration"
+    ],
+    "triple-equals": [true, "allow-null-check"],
+    "typedef-whitespace": [
+      true,
+      {
+        "call-signature": "nospace",
+        "index-signature": "nospace",
+        "parameter": "nospace",
+        "property-declaration": "nospace",
+        "variable-declaration": "nospace"
+      }
+    ],
+    "no-inferrable-types": [true, "ignore-params", "ignore-properties"],
 
-		"no-this": false,
-		"no-class": false,
-		"no-expression-statement": false,
-		"no-unused-variable": true,
-		"only-arrow-functions": [true, "allow-declarations"]
-	},
-	"rulesDirectory": ["./node_modules/tslint-misc-rules/rules"]
+    "no-this": false,
+    "no-class": false,
+    "no-expression-statement": false,
+    "no-unused-variable": true,
+    "only-arrow-functions": [true, "allow-declarations"]
+  },
+  "rulesDirectory": ["./node_modules/tslint-misc-rules/rules"]
 }

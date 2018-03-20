@@ -124,7 +124,7 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
               : undefined)
           const db = new PouchDB(`${util.getDBURL(config.get().dbServer)}/${personalDB}`, {
             skip_setup: true
-          }) as PouchDB.Database
+          })
           return authorizeKeys(user_id, db, sessionKeys, finalPermissions, roles)
         })
       )
@@ -230,42 +230,48 @@ const dbAuth = (config: IConfigure, userDB: PouchDB.Database, couchAuthDB: Pouch
 
   const getDBConfig = (dbName: string, type?: string) => {
     const { userDBs } = config.get()
-    if (userDBs) {
-      const { defaultSecurityRoles, model } = userDBs
-
-      const adminRoles = (defaultSecurityRoles && defaultSecurityRoles.admins) || []
-      const memberRoles = (defaultSecurityRoles && defaultSecurityRoles.members) || []
-
-      const dbConfigRef = model && model[dbName]
-      if (dbConfigRef) {
-        const refAdminRoles = dbConfigRef.adminRoles || []
-        const refMemberRoles = dbConfigRef.memberRoles || []
-        return {
-          name: dbName,
-          permissions: dbConfigRef.permissions || [],
-          designDocs: dbConfigRef.designDocs || [],
-          type: type || dbConfigRef.type || 'private',
-          adminRoles: [...adminRoles.filter(r => !refAdminRoles.includes(r)), ...refAdminRoles],
-          memberRoles: [...memberRoles.filter(r => !refMemberRoles.includes(r)), ...refMemberRoles]
-        }
-      } else if (model && model._default) {
-        return {
-          name: dbName,
-          permissions: model._default.permissions || [],
-          designDocs: !type || type === 'private' ? model._default.designDocs || [] : [],
-          type: type || 'private',
-          adminRoles,
-          memberRoles
-        }
+    if (!userDBs) {
+      return {
+        name: dbName,
+        type: type || 'private',
+        designDocs: [],
+        permissions: [],
+        adminRoles: [],
+        memberRoles: []
       }
     }
+    const { defaultSecurityRoles, model } = userDBs
+
+    const adminRoles = (defaultSecurityRoles && defaultSecurityRoles.admins) || []
+    const memberRoles = (defaultSecurityRoles && defaultSecurityRoles.members) || []
+
+    const dbConfigRef = model && model[dbName]
+    if (dbConfigRef) {
+      const refAdminRoles = dbConfigRef.adminRoles || []
+      const refMemberRoles = dbConfigRef.memberRoles || []
+      return {
+        name: dbName,
+        permissions: dbConfigRef.permissions || [],
+        designDocs: dbConfigRef.designDocs || [],
+        type: type || dbConfigRef.type || 'private',
+        adminRoles: [...adminRoles.filter(r => !refAdminRoles.includes(r)), ...refAdminRoles],
+        memberRoles: [...memberRoles.filter(r => !refMemberRoles.includes(r)), ...refMemberRoles]
+      }
+    }
+
+    const permissions = model && model._default ? model._default.permissions : []
+    const designDocs =
+      model && model._default && (!type || type === 'private')
+        ? model._default.designDocs || []
+        : []
+
     return {
       name: dbName,
+      permissions,
+      designDocs,
       type: type || 'private',
-      designDocs: [],
-      permissions: [],
-      adminRoles: [],
-      memberRoles: []
+      adminRoles,
+      memberRoles
     }
   }
 

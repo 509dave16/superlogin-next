@@ -552,7 +552,7 @@ const user = (
       newUser = await processTransformations(onCreateActions, newUser, 'local')
       const result = await userDB.upsert(newUser._id, oldUser => merge({}, oldUser, newUser))
 
-      newUser._rev = result.rev as string
+      newUser._rev = result.rev
       if (config.get().local.sendConfirmEmail) {
         mailer.sendEmail('confirmEmail', newUser.unverifiedEmail.email, {
           req,

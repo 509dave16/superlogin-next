@@ -44,7 +44,7 @@ const FileAdapter = (config: IConfigure): Superlogin.IAdapter => {
     if (!(keys instanceof Array)) {
       keys = [keys]
     }
-    const done = await Promise.all(keys.map(async key => await fs.removeAsync(_getFilepath(key))))
+    const done = await Promise.all(keys.map(async key => fs.removeAsync(_getFilepath(key))))
     return done.length
   }
 

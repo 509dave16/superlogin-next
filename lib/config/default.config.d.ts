@@ -42,4 +42,3 @@ export default defaultConfig;
 declare global  {
     type IDefaultConfig = typeof defaultConfig;
 }
-export {};

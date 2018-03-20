@@ -13,3 +13,14 @@ declare const _default: {
     deauthorizeKeys: (db: PouchDB.Database<{}>, keys: string[]) => Promise<any>;
 };
 export default _default;
+declare global  {
+    interface IDBAdapter {
+        getAPIKey?(db: PouchDB.Database): Promise<{
+            key: string;
+            password: string;
+            ok: boolean;
+        } | undefined>;
+        getSecurityCloudant?(db: PouchDB.Database): Promise<string>;
+        putSecurityCloudant?(db: PouchDB.Database, doc: {}): Promise<string>;
+    }
+}

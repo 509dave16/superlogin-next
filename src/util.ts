@@ -116,14 +116,6 @@ const addProvidersToDesignDoc = (config: IConfigure, ddoc: { auth: { views: {} }
 // Capitalizes the first letter of a string
 const capitalizeFirstLetter = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
-/**
- * Concatenates two arrays and removes duplicate elements
- *
- * @param {array} a First array
- * @param {array} b Second array
- * @return {array} resulting array
- */
-
 // tslint:disable-next-line:no-any
 const arrayUnion = (a: any[], b: any[]): any[] => {
   const result = a.concat(b)

@@ -13,7 +13,7 @@ declare const _default: {
         salt?: string | undefined;
         derived_key?: string | undefined;
     }, password: string) => Promise<boolean>;
-    getDBURL: ({user, protocol, host, password}: {
+    getDBURL: ({ user, protocol, host, password }: {
         designDocDir: string;
         protocol: string;
         host: string;
@@ -35,8 +35,8 @@ declare const _default: {
         userDB: string;
         couchAuthDB: string;
     }, dbName: string) => string;
-    getSessions: ({session}: Superlogin.IUserDoc) => string[];
-    getExpiredSessions: ({session}: Superlogin.IUserDoc, now: number) => string[];
+    getSessions: ({ session }: Superlogin.IUserDoc) => string[];
+    getExpiredSessions: ({ session }: Superlogin.IUserDoc, now: number) => string[];
     getSessionToken: (req: Request) => string | undefined;
     addProvidersToDesignDoc: (config: IConfigure, ddoc: {
         auth: {

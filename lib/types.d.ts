@@ -243,7 +243,7 @@ export declare namespace Superlogin {
         mailer: IMailer;
         passport: PassportStatic;
         userDB: PouchDB.Database<IUserDoc>;
-        couchAuthDB: PouchDB.Database<{}> | undefined;
+        couchAuthDB: PouchDB.Database | undefined;
         requireAuth: RequestHandler;
         removeExpiredKeys(): Promise<undefined | string[]>;
         registerProvider(provider: string, configFunction: (credentials: {}, passport: {}, authHandler: {}) => void): void;
