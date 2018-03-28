@@ -132,15 +132,12 @@ export declare namespace Superlogin {
         };
         userModel: {
             whitelist?: string[];
+            customValidators?: {
+                [key: string]: (value: any, opts: boolean, key: string, allValues: any) => any;
+            };
             validate?: {
-                age?: {
-                    presence?: boolean;
-                    numericality?: {
-                        onlyInteger?: boolean;
-                        greaterThanOrEqualTo?: number;
-                        lessThan?: number;
-                        message?: string;
-                    };
+                [key: string]: {
+                    [key: string]: any;
                 };
             };
         };

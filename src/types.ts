@@ -180,15 +180,14 @@ export declare namespace Superlogin {
     userModel: {
       // For example, this will require each new user to specify a valid age on the sign-up form or registration will fail
       whitelist?: string[]
+      customValidators?: {
+        // tslint:disable-next-line:no-any
+        [key: string]: (value: any, opts: boolean, key: string, allValues: any) => any
+      }
       validate?: {
-        age?: {
-          presence?: boolean
-          numericality?: {
-            onlyInteger?: boolean
-            greaterThanOrEqualTo?: number
-            lessThan?: number
-            message?: string
-          }
+        [key: string]: {
+          // tslint:disable-next-line:no-any
+          [key: string]: any
         }
       }
     }
