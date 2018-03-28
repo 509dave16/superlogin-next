@@ -536,9 +536,17 @@ const user = (
         }
         delete newUser.email
       }
-      const hash = await util.hashPassword(newUser.password)
+      const defaultRoles = config.get().security.defaultRoles
+
+      // Append/add default roles
+      if (newUser.roles && Array.isArray(newUser.roles)) {
+        newUser.roles.concat(defaultRoles)
+      } else {
+        newUser.roles = defaultRoles
+      }
+
       // Store password hash
-      newUser.roles = config.get().security.defaultRoles
+      const hash = await util.hashPassword(newUser.password)
       newUser.local = hash
       delete newUser.password
       delete newUser.confirmPassword
