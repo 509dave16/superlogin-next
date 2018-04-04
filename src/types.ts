@@ -250,6 +250,8 @@ export declare namespace Superlogin {
     _id: string
     type: string
     roles: string[]
+    displayName?: string
+    companyName?: string
     providers: string[]
     profile: IProfile
     forgotPassword: {
