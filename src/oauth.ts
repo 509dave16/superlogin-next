@@ -1,9 +1,13 @@
+import d from 'debug'
 import ejs from 'ejs'
 import { Request, RequestHandler, Router } from 'express'
 import fs from 'fs'
 import { Passport, Strategy as StrategyType } from 'passport'
 import path from 'path'
 import util from './util'
+
+const debug = d('superlogin')
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -202,7 +206,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
           linkSuccess
         )
       }
-      console.log(`${provider} loaded.`)
+      debug(`${provider} loaded.`)
     }
   }
 
@@ -252,7 +256,7 @@ const oauth = (router: Router, passport: Passport, user: User, config: IConfigur
           linkTokenSuccess
         )
       }
-      console.log(`${providerName}-token loaded.`)
+      debug(`${providerName}-token loaded.`)
     }
   }
 

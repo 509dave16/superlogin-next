@@ -1,9 +1,12 @@
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
+import d from 'debug'
 import ejs, { Data } from 'ejs'
 import fs from 'fs'
 import nodemailer from 'nodemailer'
 import stubTransport from 'nodemailer-stub-transport'
+
+const debug = d('superlogin')
 
 const mailer = (config: IConfigure): IMailer => {
   const configMailer = config.get().mailer
@@ -39,7 +42,7 @@ const mailer = (config: IConfigure): IMailer => {
         text: format !== 'html' ? body : undefined
       }
       if (configTestMode && configTestMode.debugEmail) {
-        console.log(mailOptions)
+        debug(mailOptions)
       }
       // send the message
       return sendEmail(mailOptions)

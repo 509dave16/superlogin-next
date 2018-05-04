@@ -1,5 +1,9 @@
+import d from 'debug'
 import redisBase, { RedisClient } from 'redis'
 import { Superlogin } from '../types'
+
+const debug = d('superlogin')
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
@@ -35,7 +39,7 @@ const RedisAdapter = (config: IConfigure): Superlogin.IAdapter => {
 
   redisClient.on('error', (err: string) => console.error(`Redis error: ${err}`))
 
-  redisClient.on('connect', () => console.log('Redis is ready'))
+  redisClient.on('connect', () => debug('Redis is ready'))
 
   const storeKey = async (key: string, life: {}, data: {}) =>
     redisClient.psetexAsync(key, life, data)

@@ -1,6 +1,9 @@
+import d from 'debug'
 import fsBase from 'fs-extra'
 import path from 'path'
 import { Superlogin } from '../types'
+
+const debug = d('superlogin')
 
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
@@ -13,7 +16,7 @@ const FileAdapter = (config: IConfigure): Superlogin.IAdapter => {
   const _sessionFolder = sessionsRoot
     ? path.join(process.env.PWD as string, sessionsRoot)
     : undefined
-  console.log('File Adapter loaded')
+  debug('File Adapter loaded')
 
   const _getFilepath = (key: string) =>
     path.format({

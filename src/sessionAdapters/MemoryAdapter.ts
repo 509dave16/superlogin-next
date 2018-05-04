@@ -1,11 +1,15 @@
+import d from 'debug'
 import { Superlogin } from '../types'
+
+const debug = d('superlogin')
+
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
 const MemoryAdapter = (): Superlogin.IAdapter => {
   const _keys = {}
   const _expires = {}
-  console.log('Memory Adapter loaded')
+  debug('Memory Adapter loaded')
 
   const _removeExpired = () => {
     const now = Date.now()

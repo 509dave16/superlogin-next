@@ -109,7 +109,7 @@
   dependencies:
     "@babel/types" "7.0.0-beta.42"
 
-"@babel/helper-module-imports@7.0.0-beta.42", "@babel/helper-module-imports@^7.0.0-beta.39":
+"@babel/helper-module-imports@7.0.0-beta.42":
   version "7.0.0-beta.42"
   resolved "https://registry.yarnpkg.com/@babel/helper-module-imports/-/helper-module-imports-7.0.0-beta.42.tgz#4de334b42fa889d560f15122f66c3bfe1f30cb77"
   dependencies:
@@ -556,7 +556,7 @@
     "@types/express" "*"
     "@types/node" "*"
 
-"@types/debug@*":
+"@types/debug@*", "@types/debug@^0.0.30":
   version "0.0.30"
   resolved "https://registry.yarnpkg.com/@types/debug/-/debug-0.0.30.tgz#dc1e40f7af3b9c815013a7860e6252f6352a84df"
 
@@ -773,13 +773,13 @@ accepts@~1.3.5:
     mime-types "~2.1.18"
     negotiator "0.6.1"
 
-acorn-es7-plugin@>=1.1.6:
+acorn-es7-plugin@^1.1.7:
   version "1.1.7"
   resolved "https://registry.yarnpkg.com/acorn-es7-plugin/-/acorn-es7-plugin-1.1.7.tgz#f2ee1f3228a90eead1245f9ab1922eb2e71d336b"
 
 acorn@>=2.5.2:
-  version "5.2.1"
-  resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.2.1.tgz#317ac7821826c22c702d66189ab8359675f135d7"
+  version "5.5.3"
+  resolved "https://registry.yarnpkg.com/acorn/-/acorn-5.5.3.tgz#f473dd47e0277a08e28e9bec5aeeb04751f0b8c9"
 
 ajv@^4.9.1:
   version "4.11.8"
@@ -1724,13 +1724,12 @@ fancy-log@^1.1.0:
     chalk "^1.1.1"
     time-stamp "^1.0.0"
 
-"fast-async@https://github.com/phyllisstein/fast-async":
-  version "6.3.1"
-  resolved "https://github.com/phyllisstein/fast-async#223db53e1f3f52236307863090bc1a9425bbdf4b"
+fast-async@^6.3.7:
+  version "6.3.7"
+  resolved "https://registry.yarnpkg.com/fast-async/-/fast-async-6.3.7.tgz#b4a406f2c59890b8b1b4c8468a36bd7f1a57e47f"
   dependencies:
-    "@babel/helper-module-imports" "^7.0.0-beta.39"
-    nodent-compiler ">=3.1.7"
-    nodent-runtime ">=3.2.0"
+    nodent-compiler "^3.2.4"
+    nodent-runtime ">=3.2.1"
 
 fast-deep-equal@^1.0.0:
   version "1.1.0"
@@ -3152,17 +3151,22 @@ nodemailer@^4.6.3:
   version "4.6.3"
   resolved "https://registry.yarnpkg.com/nodemailer/-/nodemailer-4.6.3.tgz#c3b7e97fb72f46d4a475c406a15ed23a45dbcddc"
 
-nodent-compiler@>=3.1.7:
-  version "3.1.7"
-  resolved "https://registry.yarnpkg.com/nodent-compiler/-/nodent-compiler-3.1.7.tgz#78198d9baacc491b0065b8c65bc0ca83d3fcd2a2"
+nodent-compiler@^3.2.4:
+  version "3.2.6"
+  resolved "https://registry.yarnpkg.com/nodent-compiler/-/nodent-compiler-3.2.6.tgz#ce53314bce7b18f136601068886b0379b8d372a8"
   dependencies:
     acorn ">=2.5.2"
-    acorn-es7-plugin ">=1.1.6"
-    source-map "^0.5.6"
+    acorn-es7-plugin "^1.1.7"
+    nodent-transform "^3.2.6"
+    source-map "^0.5.7"
 
-nodent-runtime@>=3.2.0:
+nodent-runtime@>=3.2.1:
   version "3.2.1"
   resolved "https://registry.yarnpkg.com/nodent-runtime/-/nodent-runtime-3.2.1.tgz#9e2755d85e39f764288f0d4752ebcfe3e541e00e"
+
+nodent-transform@^3.2.6:
+  version "3.2.6"
+  resolved "https://registry.yarnpkg.com/nodent-transform/-/nodent-transform-3.2.6.tgz#b782edc0e2aafa6d29df0333b36cd00af757c36d"
 
 noop-logger@^0.1.1:
   version "0.1.1"
@@ -4030,7 +4034,7 @@ sofa-model@^0.2.0:
     validate.js "^0.8.0"
     validator "^4.0.5"
 
-source-map@^0.5.0, source-map@^0.5.6:
+source-map@^0.5.0, source-map@^0.5.7:
   version "0.5.7"
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.5.7.tgz#8a039d2d1021d22d1ea14c80d8ea468ba2ef3fcc"
 
