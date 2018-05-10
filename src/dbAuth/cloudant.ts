@@ -5,11 +5,21 @@ import util from './../util'
 // tslint:disable-next-line:no-var-requires
 global.Promise = require('bluebird')
 
-const getSecurityUrl = (db: PouchDB.Database) =>
-  url.format(`${url.parse(db.name).pathname}/_security`)
+const getSecurityUrl = (db: PouchDB.Database) => {
+  const urlObj = url.parse(db.name);
+  let pathPiece = urlObj.pathname || ' ';
+  pathPiece = pathPiece.slice(1);
+  const dbName = encodeURIComponent(pathPiece);
+  const myUrl = urlObj.protocol + "//" + urlObj.auth + "@" + urlObj.host + "/_api/v2/db/" + dbName;
+  return url.format(myUrl + "/_security");
+  // url.format(`${url.parse(db.name).pathname}/_security`)
+}
 
 const getAPIKey = async (db: PouchDB.Database) => {
-  const finalUrl = url.format(`${url.parse(db.name).pathname}/_api/v2/api_keys`)
+  const urlObj = url.parse(db.name);
+  const myUrl = `${urlObj.protocol}//${urlObj.auth}@${urlObj.host}`;
+  const finalUrl = url.format(`${myUrl}/_api/v2/api_keys`);
+  // const finalUrl = url.format(`${url.parse(db.name).host}/_api/v2/api_keys`)
   try {
     const res = await request.post(finalUrl)
     if (res) {
