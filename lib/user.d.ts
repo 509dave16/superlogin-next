@@ -23,7 +23,7 @@ declare const user: (config: IConfigure, userDB: PouchDB.Database<Superlogin.IUs
         authorizeKeys: (user_id: string, db: PouchDB.Database<{}>, keys: string[], permissions?: string[] | undefined, roles?: string[] | undefined) => Promise<boolean | void>;
         deauthorizeKeys: (db: PouchDB.Database<{}>, keys: string | string[]) => Promise<boolean | void>;
         deauthorizeUser: (userDoc: Superlogin.IUserDoc, keys: string | string[]) => Promise<boolean | (boolean | void)[]>;
-        removeKeys: (keys: string | string[]) => Promise<boolean | void | PouchDB.Core.Response[]>;
+        removeKeys: (keys: string | string[]) => Promise<boolean | void | (PouchDB.Core.Response | PouchDB.Core.Error)[]>;
         storeKey: (username: string, key: string, password: string, expires?: number | undefined, roles?: string[] | undefined) => Promise<void | {
             _id: string;
             type: string;
