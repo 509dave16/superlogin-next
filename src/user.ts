@@ -902,10 +902,9 @@ const user = (
         if (configPublicURL) {
           const dbObj = url.parse(configPublicURL) as {
             auth: string
-            format(): string
           }
           dbObj.auth = `${newSession.token}:${newSession.password}`
-          publicURL = dbObj.format()
+          publicURL = url.format(dbObj)
         } else {
           publicURL = `${config.get().dbServer.protocol}${newSession.token}:${
             newSession.password
