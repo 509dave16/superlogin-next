@@ -125,7 +125,7 @@ declare global {
       roles?: string[]
     ): Promise<void | boolean>
     deauthorizeKeys(db: PouchDB.Database, keys: string[] | string): Promise<void | boolean>
-    removeKeys(keys: string[] | string): Promise<boolean | PouchDB.Core.Response[] | void>
+    removeKeys(keys: string[] | string): Promise<boolean | void | (PouchDB.Core.Response|PouchDB.Core.Error)[]>
     storeKey(
       username: string,
       key: string,
